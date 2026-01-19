@@ -9,27 +9,33 @@
 <body class="bg-gray-50 flex items-center justify-center h-screen">
 
 <div class="bg-white shadow-lg rounded p-8 w-96">
-  <h2 class="text-2xl font-bold mb-6 text-center text-red-600"> Login</h2>
+  <h2 class="text-2xl font-bold mb-6 text-center text-red-600">Login</h2>
+
   <input id="email" type="email" placeholder="Email" class="border p-2 rounded w-full mb-4">
   <input id="password" type="password" placeholder="Password" class="border p-2 rounded w-full mb-4">
-  <button id="loginBtn" class="bg-gradient-to-r from-red-500 to-red-700 text-white py-2 w-full rounded">Login</button>
+
+  <button id="loginBtn" class="bg-gradient-to-r from-red-500 to-red-700 text-white py-2 w-full rounded">
+    Login
+  </button>
+
   <p id="msg" class="text-red-600 mt-3 text-center"></p>
+
   <p class="text-center mt-4 text-gray-600">
-    Don't have an account? 
+    Don't have an account?
     <a href="signup.html" class="text-red-600 font-semibold hover:underline">Sign Up</a>
   </p>
 </div>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
   authDomain: "mcode-sales.firebaseapp.com",
   projectId: "mcode-sales",
-  storageBucket: "mcode-sales.firebasestorage.app",
+  storageBucket: "mcode-sales.appspot.com",
   messagingSenderId: "823876737976",
   appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
 };
@@ -38,47 +44,43 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const loginBtn = document.getElementById('loginBtn');
-const emailEl = document.getElementById('email');
-const passEl = document.getElementById('password');
-const msgEl = document.getElementById('msg');
+const emailEl = document.getElementById("email");
+const passEl = document.getElementById("password");
+const msgEl = document.getElementById("msg");
+const loginBtn = document.getElementById("loginBtn");
 
-// Check if user already logged in
-onAuthStateChanged(auth, async user => {
-  if(user){
-    const docSnap = await getDoc(doc(db, "users", user.uid));
-    if(docSnap.exists()){
-      const role = docSnap.data().role;
-      if(role === "owner") window.location.href = "owner.html"; // Owner portal
-      else window.location.href = "index.html"; // Staff portal
-    } else {
-      msgEl.innerText = "User role not found!";
-    }
-  }
-});
-
-// Login button
 loginBtn.onclick = async () => {
+  msgEl.innerText = "";
+
   const email = emailEl.value.trim();
   const password = passEl.value.trim();
-  if(!email || !password) return msgEl.innerText = "Please enter email & password";
 
-  try{
-    const userCredential = await signInWithEmailAndPassword(auth,email,password);
-    const user = userCredential.user;
+  if (!email || !password) {
+    msgEl.innerText = "Please enter email and password";
+    return;
+  }
 
-    // Get role from Firestore
-    const docSnap = await getDoc(doc(db, "users", user.uid));
-    if(docSnap.exists()){
-      const role = docSnap.data().role;
-      if(role === "owner") window.location.href = "owner.html";
-      else window.location.href = "index.html";
-    } else {
-      msgEl.innerText = "User role not found!";
+  try {
+    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const user = cred.user;
+
+    const snap = await getDoc(doc(db, "users", user.uid));
+
+    // 🔐 SAFE DEFAULT
+    let role = "staff";
+
+    if (snap.exists() && snap.data().role) {
+      role = snap.data().role;
     }
 
-  } catch(err){
-    msgEl.innerText = err.message;
+    if (role === "owner") {
+      window.location.href = "owner.html";
+    } else {
+      window.location.href = "index.html";
+    }
+
+  } catch (err) {
+    msgEl.innerText = err.message.replace("Firebase:", "");
   }
 };
 </script>
