@@ -27,62 +27,77 @@
 </div>
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
-  authDomain: "mcode-sales.firebaseapp.com",
-  projectId: "mcode-sales",
-  storageBucket: "mcode-sales.appspot.com",
-  messagingSenderId: "823876737976",
-  appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
-};
-
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-const emailEl = document.getElementById("email");
-const passEl = document.getElementById("password");
-const msgEl = document.getElementById("msg");
-const loginBtn = document.getElementById("loginBtn");
-
-loginBtn.onclick = async () => {
-  msgEl.innerText = "";
-
-  const email = emailEl.value.trim();
-  const password = passEl.value.trim();
-
-  if (!email || !password) {
-    msgEl.innerText = "Please enter email and password";
-    return;
-  }
-
-  try {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
-    const user = cred.user;
-
-    const snap = await getDoc(doc(db, "users", user.uid));
-
-    // 🔐 SAFE DEFAULT
-    let role = "staff";
-
-    if (snap.exists() && snap.data().role) {
-      role = snap.data().role;
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
+    authDomain: "mcode-sales.firebaseapp.com",
+    projectId: "mcode-sales",
+    storageBucket: "mcode-sales.firebasestorage.app",
+    messagingSenderId: "823876737976",
+    appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
+  };
+  
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+  
+  const loginBtn = document.getElementById('loginBtn');
+  const emailEl = document.getElementById('email');
+  const passEl = document.getElementById('password');
+  const msgEl = document.getElementById('msg');
+  
+  loginBtn.onclick = async () => {
+    msgEl.innerText = "";
+    
+    const email = emailEl.value.trim();
+    const password = passEl.value.trim();
+    
+    if (!email || !password) {
+      msgEl.innerText = "Please enter email & password";
+      return;
     }
-
-    if (role === "owner") {
-      window.location.href = "owner.html";
-    } else {
-      window.location.href = "index.html";
+    
+    loginBtn.disabled = true;
+    loginBtn.innerText = "Signing in...";
+    
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      
+      // Fetch role
+      const snap = await getDoc(doc(db, "users", user.uid));
+      
+      let role = "staff"; // DEFAULT fallback
+      
+      if (snap.exists() && snap.data().role) {
+        role = snap.data().role;
+      }
+      
+      // REDIRECT SAFELY
+      if (role === "owner") {
+        window.location.replace("owner.html");
+      } else {
+        window.location.replace("index.html");
+      }
+      
+    } catch (err) {
+      if (err.code === "auth/quota-exceeded") {
+        msgEl.innerText = "Too many attempts. Please wait 15 minutes.";
+      } else if (err.code === "auth/wrong-password") {
+        msgEl.innerText = "Incorrect password.";
+      } else if (err.code === "auth/user-not-found") {
+        msgEl.innerText = "Account not found.";
+      } else {
+        msgEl.innerText = err.message;
+      }
+    } finally {
+      loginBtn.disabled = false;
+      loginBtn.innerText = "Login";
     }
-
-  } catch (err) {
-    msgEl.innerText = err.message.replace("Firebase:", "");
-  }
-};
+  };
 </script>
 
 </body>
