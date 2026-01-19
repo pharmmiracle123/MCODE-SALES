@@ -28,8 +28,7 @@
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getAuth, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
-  import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { getAuth, signInWithEmailAndPassword, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
   
   const firebaseConfig = {
     apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
@@ -40,18 +39,24 @@
     appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
   };
   
+  // Initialize Firebase
   const app = initializeApp(firebaseConfig);
   const auth = getAuth(app);
-  const db = getFirestore(app);
   
   const loginBtn = document.getElementById('loginBtn');
   const emailEl = document.getElementById('email');
   const passEl = document.getElementById('password');
   const msgEl = document.getElementById('msg');
   
+  // If already logged in, redirect to main page
+  onAuthStateChanged(auth, user => {
+    if (user) {
+      window.location.href = "index.html";
+    }
+  });
+  
+  // Login button
   loginBtn.onclick = async () => {
-    msgEl.innerText = "";
-    
     const email = emailEl.value.trim();
     const password = passEl.value.trim();
     
@@ -61,41 +66,14 @@
     }
     
     loginBtn.disabled = true;
-    loginBtn.innerText = "Signing in...";
+    msgEl.innerText = "Logging in...";
     
     try {
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      
-      // Fetch role
-      const snap = await getDoc(doc(db, "users", user.uid));
-      
-      let role = "staff"; // DEFAULT fallback
-      
-      if (snap.exists() && snap.data().role) {
-        role = snap.data().role;
-      }
-      
-      // REDIRECT SAFELY
-      if (role === "owner") {
-        window.location.replace("owner.html");
-      } else {
-        window.location.replace("index.html");
-      }
-      
+      await signInWithEmailAndPassword(auth, email, password);
+      window.location.href = "index.html";
     } catch (err) {
-      if (err.code === "auth/quota-exceeded") {
-        msgEl.innerText = "Too many attempts. Please wait 15 minutes.";
-      } else if (err.code === "auth/wrong-password") {
-        msgEl.innerText = "Incorrect password.";
-      } else if (err.code === "auth/user-not-found") {
-        msgEl.innerText = "Account not found.";
-      } else {
-        msgEl.innerText = err.message;
-      }
-    } finally {
+      msgEl.innerText = err.message;
       loginBtn.disabled = false;
-      loginBtn.innerText = "Login";
     }
   };
 </script>
