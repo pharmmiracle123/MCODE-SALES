@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCODE SALES Signup</title>
+<script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 flex items-center justify-center h-screen">
+
+<div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
+  <h1 class="text-2xl font-bold text-red-600 mb-6 text-center">Signup - Shopkite Merchant</h1>
+  <form id="signupForm" class="space-y-4">
+    <div>
+      <label class="block text-gray-700 font-semibold">Email</label>
+      <input type="email" id="email" placeholder="example@mail.com" class="border w-full p-2 rounded mt-1" required>
+    </div>
+    <div>
+      <label class="block text-gray-700 font-semibold">Password</label>
+      <input type="password" id="password" placeholder="Password" class="border w-full p-2 rounded mt-1" required>
+    </div>
+    <div>
+      <label class="block text-gray-700 font-semibold">Confirm Password</label>
+      <input type="password" id="confirmPassword" placeholder="Confirm Password" class="border w-full p-2 rounded mt-1" required>
+    </div>
+    <div>
+    </div>
+    <button type="submit" class="w-full bg-gradient-to-r from-red-500 to-red-700 text-white py-2 rounded font-semibold hover:scale-105 transition">Sign Up</button>
+  </form>
+  <p class="text-sm text-gray-600 mt-4 text-center">Already have an account? <a href="login..html" class="text-red-600 hover:underline">Login</a></p>
+</div>
+
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+  import { getFirestore, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
+    authDomain: "mcode-sales.firebaseapp.com",
+    projectId: "mcode-sales",
+    storageBucket: "mcode-sales.firebasestorage.app",
+    messagingSenderId: "823876737976",
+    appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const signupForm = document.getElementById('signupForm');
+
+  signupForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    const role = document.getElementById('role').value;
+
+    if (!email || !password || !confirmPassword || !role) return alert("All fields are required!");
+    if (password !== confirmPassword) return alert("Passwords do not match!");
+    if (password.length < 6) return alert("Password must be at least 6 characters");
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // Save role to Firestore
+      await setDoc(doc(db, "users", user.uid), {
+        email: user.email,
+        role: role,
+        createdAt: new Date()
+      });
+
+      alert("Signup successful! Redirecting to login...");
+      window.location.href = "login.html";
+    } catch (err) {
+      alert("Error: " + err.message);
+    }
+  });
+</script>
+
+</body>
+</html>
