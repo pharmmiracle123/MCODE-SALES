@@ -148,13 +148,14 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
   </div>
 </div>
 
-<!-- JS -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import { getFirestore, collection, getDocs, addDoc, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
-// Firebase config
+/* =====================================================
+   FIREBASE CONFIGURATION
+===================================================== */
 const firebaseConfig = {
   apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
   authDomain: "mcode-sales.firebaseapp.com",
@@ -164,28 +165,32 @@ const firebaseConfig = {
   appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const productsCol = collection(db, "products");
 
+/* =====================================================
+   AUTHENTICATION
+===================================================== */
 // Redirect to login if not logged in
-onAuthStateChanged(auth,user=>{
-  if(!user) window.location.href = "login..html";
-  else console.log("User logged in:", user.email);
+onAuthStateChanged(auth, user => {
+  if (!user) window.location.href = "login..html";
+  else console.log("Logged in:", user.email);
 });
 
 // Logout button
-document.getElementById('logoutBtn')?.addEventListener('click', async ()=>{
+document.getElementById('logoutBtn')?.addEventListener('click', async () => {
   await signOut(auth);
   window.location.href = "login..html";
 });
 
-// Variables
-let productData = []; // Firestore synced
-let cart = JSON.parse(localStorage.getItem('cart')||'[]');
-let soldData = JSON.parse(localStorage.getItem('sold')||'[]');
+/* =====================================================
+   VARIABLES
+===================================================== */
+let productData = [];
+let cart = JSON.parse(localStorage.getItem('cart') || '[]');
+let soldData = JSON.parse(localStorage.getItem('sold') || '[]');
 
 const productListEl = document.getElementById('productList');
 const cartItemsEl = document.getElementById('cartItems');
@@ -195,176 +200,204 @@ const statProducts = document.getElementById('statProducts');
 const statRentals = document.getElementById('statRentals');
 const adminTotalEl = document.getElementById('adminTotal');
 
-// LocalStorage save
-function saveLocal(){
+/* =====================================================
+   LOCAL STORAGE MANAGEMENT
+===================================================== */
+function saveLocal() {
   localStorage.setItem('cart', JSON.stringify(cart));
   localStorage.setItem('sold', JSON.stringify(soldData));
+  localStorage.setItem('products', JSON.stringify(productData));
 }
 
-// Update stats
-function updateStats(){
+/* =====================================================
+   STATISTICS
+===================================================== */
+function updateStats() {
   statCustomers.innerText = soldData.length;
   statProducts.innerText = productData.length;
-  statRentals.innerText = soldData.filter(s=>s.barcode==="RENTAL").length;
+  statRentals.innerText = soldData.filter(s => s.barcode === "RENTAL").length;
 }
 
+/* =====================================================
+   PRODUCT FUNCTIONS
+===================================================== */
 // Render products
-function renderProducts(search=''){
-  productListEl.innerHTML='';
-  productData.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())).forEach((p,i)=>{
-    productListEl.innerHTML+=`
-      <div class="bg-white shadow p-4 rounded-lg">
-        <h3 class="font-semibold">${p.name} ${p.qty<=5?`<span class="low-stock">(Low Stock: ${p.qty})</span>`:''}</h3>
-        <p class="text-red-600 font-bold">₦${p.price}</p>
-        <p class="text-sm">Stock: ${p.qty}</p>
-        <div class="flex justify-between mt-2">
-          <button onclick="adjustQty(${i},-1)" class="px-2 bg-gray-200 rounded">-</button>
-          <span id="qty${i}">1</span>
-          <button onclick="adjustQty(${i},1)" class="px-2 bg-gray-200 rounded">+</button>
-        </div>
-        <button onclick="addToCart(${i})" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 rounded mt-2">Add to Cart</button>
-      </div>`;
-  });
+function renderProducts(search = '') {
+  productListEl.innerHTML = '';
+  productData
+    .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
+    .forEach((p, i) => {
+      productListEl.innerHTML += `
+        <div class="bg-white shadow p-4 rounded-lg">
+          <h3 class="font-semibold">${p.name} ${p.qty <= 5 ? `<span class="low-stock">(Low Stock: ${p.qty})</span>` : ''}</h3>
+          <p class="text-red-600 font-bold">₦${p.price}</p>
+          <p class="text-sm">Stock: ${p.qty}</p>
+          <div class="flex justify-between mt-2">
+            <button onclick="adjustQty(${i},-1)" class="px-2 bg-gray-200 rounded">-</button>
+            <span id="qty${i}">1</span>
+            <button onclick="adjustQty(${i},1)" class="px-2 bg-gray-200 rounded">+</button>
+          </div>
+          <button onclick="addToCart(${i})" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 rounded mt-2">Add to Cart</button>
+        </div>`;
+    });
 }
 
-function adjustQty(idx,val){
-  const el = document.getElementById('qty'+idx);
-  let qty = parseInt(el.innerText)+val;
-  if(qty<1) qty=1;
-  el.innerText=qty;
+// Adjust quantity in product card
+function adjustQty(idx, val) {
+  const el = document.getElementById('qty' + idx);
+  let qty = parseInt(el.innerText) + val;
+  if (qty < 1) qty = 1;
+  el.innerText = qty;
 }
 
-// Load products from Firestore + fallback localStorage
+// Load products from Firestore or localStorage
 async function loadProducts() {
   try {
     const snapshot = await getDocs(productsCol);
-    if(!snapshot.empty){
+    if (!snapshot.empty) {
       productData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      localStorage.setItem('products', JSON.stringify(productData));
+      saveLocal();
     } else {
-      productData = JSON.parse(localStorage.getItem('products')||'[]');
+      productData = JSON.parse(localStorage.getItem('products') || '[]');
     }
     renderProducts(); updateStats();
-  } catch(err){
+  } catch (err) {
     console.error("Error loading products:", err);
-    productData = JSON.parse(localStorage.getItem('products')||'[]');
+    productData = JSON.parse(localStorage.getItem('products') || '[]');
     renderProducts(); updateStats();
   }
 }
 
-// Real-time Firestore listener
-onSnapshot(productsCol, snapshot=>{
+// Real-time Firestore sync
+onSnapshot(productsCol, snapshot => {
   productData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  localStorage.setItem('products', JSON.stringify(productData));
-  renderProducts(); updateStats();
+  saveLocal(); renderProducts(); updateStats();
 });
 
-// Add product
-document.getElementById('addProductForm').onsubmit = async e=>{
+// Add new product
+document.getElementById('addProductForm').onsubmit = async e => {
   e.preventDefault();
-  if(prompt("Enter Password")!=="ADMIN123") return alert("Wrong password");
-  const name = prodName.value; const price = +prodPrice.value; const qty = +prodQty.value;
-  if(!name||!price||!qty) return alert("Fill all fields");
+  if (prompt("Enter Password") !== "ADMIN123") return alert("Wrong password");
+  const name = prodName.value;
+  const price = +prodPrice.value;
+  const qty = +prodQty.value;
+  if (!name || !price || !qty) return alert("Fill all fields");
 
   try {
-    const docRef = await addDoc(productsCol,{ name, price, qty, barcode:"" });
-    productData.push({ id: docRef.id, name, price, qty, barcode:"" });
-    localStorage.setItem('products', JSON.stringify(productData));
-    renderProducts(); updateStats();
+    const docRef = await addDoc(productsCol, { name, price, qty, barcode: "" });
+    productData.push({ id: docRef.id, name, price, qty, barcode: "" });
+    saveLocal(); renderProducts(); updateStats();
     e.target.reset();
-  } catch(err){
+  } catch (err) {
     console.error("Error adding product:", err);
     alert("Failed to add product");
   }
 }
 
-// Search
-searchProd.oninput=e=>renderProducts(e.target.value);
+// Search products
+searchProd.oninput = e => renderProducts(e.target.value);
 
-// Cart
-function addToCart(idx){
-  const qtySel = +document.getElementById('qty'+idx).innerText;
-  if(qtySel>productData[idx].qty) return alert("Not enough stock");
-  cart.push({...productData[idx],qty:qtySel});
-  updateCartUI(); saveLocal();
+/* =====================================================
+   CART FUNCTIONS
+===================================================== */
+function addToCart(idx) {
+  const qtySel = +document.getElementById('qty' + idx).innerText;
+  if (qtySel > productData[idx].qty) return alert("Not enough stock");
+  cart.push({ ...productData[idx], qty: qtySel });
+  updateCartUI();
 }
 
-function updateCartUI(){
-  cartItemsEl.innerHTML='';
-  let total=0;
-  cart.forEach((p,index)=>{
-    total+=p.price*p.qty;
-    cartItemsEl.innerHTML+=`
+function updateCartUI() {
+  cartItemsEl.innerHTML = '';
+  let total = 0;
+  cart.forEach((p, index) => {
+    total += p.price * p.qty;
+    cartItemsEl.innerHTML += `
       <div class="flex justify-between items-center bg-gray-100 p-2 rounded">
         <div>
           <p class="font-semibold">${p.name} x${p.qty}</p>
-          <p class="text-sm text-gray-600">₦${p.price*p.qty}</p>
+          <p class="text-sm text-gray-600">₦${p.price * p.qty}</p>
         </div>
         <button onclick="removeFromCart(${index})" class="text-red-600 text-xl hover:scale-110 transition">❌</button>
       </div>`;
   });
-  document.getElementById('cartTotal').innerText=total;
-  document.getElementById('cartCount').innerText=cart.length;
+  document.getElementById('cartTotal').innerText = total;
+  document.getElementById('cartCount').innerText = cart.length;
   saveLocal();
 }
 
-function removeFromCart(index){
-  cart.splice(index,1);
+function removeFromCart(index) {
+  cart.splice(index, 1);
   updateCartUI();
 }
 
-// RENT
-rentBtn.onclick=()=>{
-  let days=+rentalDays.value||1;
-  cart.push({name:`PowerBank Rental (${days} day)`,price:2000*days,barcode:"RENTAL",qty:1});
+/* =====================================================
+   RENTAL FUNCTIONS
+===================================================== */
+rentBtn.onclick = () => {
+  let days = +rentalDays.value || 1;
+  cart.push({ name: `PowerBank Rental (${days} day)`, price: 2000 * days, barcode: "RENTAL", qty: 1 });
   updateCartUI(); updateStats();
 };
 
-// MODALS
-cartBtn.onclick=()=>cartModal.style.display='flex';
-closeCart.onclick=()=>cartModal.style.display='none';
-checkoutBtn.onclick=()=>{
-  cartModal.style.display='none';
-  let summary='',total=0;
-  cart.forEach(i=>{summary+=`${i.name} x${i.qty} - ₦${i.price*i.qty}\n`; total+=i.price*i.qty;});
-  orderSummary.value=summary+`Total: ₦${total}`;
-  checkoutModal.style.display='flex';
+/* =====================================================
+   MODALS
+===================================================== */
+cartBtn.onclick = () => cartModal.style.display = 'flex';
+closeCart.onclick = () => cartModal.style.display = 'none';
+
+checkoutBtn.onclick = () => {
+  cartModal.style.display = 'none';
+  let summary = '', total = 0;
+  cart.forEach(i => { summary += `${i.name} x${i.qty} - ₦${i.price * i.qty}\n`; total += i.price * i.qty; });
+  orderSummary.value = summary + `Total: ₦${total}`;
+  checkoutModal.style.display = 'flex';
 };
-closeCheckout.onclick=()=>checkoutModal.style.display='none';
 
-// CONFIRM ORDER
-confirmOrder.onclick=()=>{
-  const cash=+cashPay.value||0; const pos=+posPay.value||0; const bank=+bankPay.value||0;
-  const paid=cash+pos+bank;
-  const total=cart.reduce((a,p)=>a+p.price*p.qty,0);
-  if(paid<total) return alert("Incomplete payment");
+closeCheckout.onclick = () => checkoutModal.style.display = 'none';
 
-  cart.forEach(c=>{
-    const idx=productData.findIndex(p=>p.name===c.name);
-    if(idx!==-1){
-      productData[idx].qty-=c.qty;
-      // Update Firestore
-      setDoc(doc(db,"products",productData[idx].id), {...productData[idx]});
+/* =====================================================
+   CONFIRM ORDER
+===================================================== */
+confirmOrder.onclick = () => {
+  const cash = +cashPay.value || 0;
+  const pos = +posPay.value || 0;
+  const bank = +bankPay.value || 0;
+  const paid = cash + pos + bank;
+  const total = cart.reduce((a, p) => a + p.price * p.qty, 0);
+  if (paid < total) return alert("Incomplete payment");
+
+  cart.forEach(c => {
+    const idx = productData.findIndex(p => p.name === c.name);
+    if (idx !== -1) {
+      productData[idx].qty -= c.qty;
+      setDoc(doc(db, "products", productData[idx].id), { ...productData[idx] });
     }
-    soldData.push({...c,payment:{cash,pos,bank}});
+    soldData.push({ ...c, payment: { cash, pos, bank } });
   });
 
-  cart=[]; saveLocal(); renderProducts(); updateCartUI(); updateStats();
-  checkoutModal.style.display='none'; alert("Sale completed");
+  cart = [];
+  saveLocal(); renderProducts(); updateCartUI(); updateStats();
+  checkoutModal.style.display = 'none'; alert("Sale completed");
   renderAdminPanel();
-}
+};
 
-// ADMIN PANEL
-function showAdmin(){
-  if(prompt("Enter Password")!=="ADMIN123") return;
+/* =====================================================
+   ADMIN PANEL FUNCTIONS
+===================================================== */
+function showAdmin() {
+  if (prompt("Enter Password") !== "ADMIN123") return;
   document.getElementById('admin').classList.remove('hidden');
   renderAdminPanel();
 }
-function renderAdminPanel(){
-  adminListEl.innerHTML='<h3 class="font-bold mb-2">Stock Manager</h3>';
-  let totalSales=0;
-  productData.forEach((p,i)=>{
-    adminListEl.innerHTML+=`
+
+function renderAdminPanel() {
+  adminListEl.innerHTML = '<h3 class="font-bold mb-2">Stock Manager</h3>';
+  let totalSales = 0;
+
+  // Stock manager
+  productData.forEach((p, i) => {
+    adminListEl.innerHTML += `
       <div class="flex justify-between items-center bg-white p-2 rounded mb-1 shadow-sm">
         <span>${p.name} (Stock: ${p.qty})</span>
         <div class="flex gap-2">
@@ -374,99 +407,111 @@ function renderAdminPanel(){
       </div>`;
   });
 
-  if(soldData.length>0){
-    adminListEl.innerHTML+=`
+  if (soldData.length > 0) {
+    // Admin controls
+    adminListEl.innerHTML += `
       <div class="flex justify-end items-center gap-2 mt-2 mb-4">
         <button onclick="printReport()" class="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-md transition">🖨️ Print Report</button>
+        <button onclick="exportToExcel()" class="flex items-center gap-2 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 shadow-md transition">📥 Export Excel</button>
         <button onclick="clearHistory()" class="flex items-center gap-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 shadow-md transition">🛒 Clear History</button>
       </div>`;
-    soldData.forEach(s=>{
-      adminListEl.innerHTML+=`
+
+    soldData.forEach(s => {
+      totalSales += s.price * s.qty;
+      adminListEl.innerHTML += `
         <div class="bg-gray-100 p-2 rounded mb-1 shadow-sm">
           <p>💊 <strong>${s.name}</strong> x${s.qty} - ₦${s.price} each</p>
-          <p class="text-sm">Total: ₦${s.price*s.qty} | Cash: ₦${s.payment?.cash||0} | POS: ₦${s.payment?.pos||0} | Bank: ₦${s.payment?.bank||0}</p>
+          <p class="text-sm">Total: ₦${s.price * s.qty} | Cash: ₦${s.payment?.cash || 0} | POS: ₦${s.payment?.pos || 0} | Bank: ₦${s.payment?.bank || 0}</p>
         </div>`;
-      totalSales += s.price * s.qty;
     });
   }
 
   adminTotalEl.innerText = totalSales;
 }
 
-// Update stock manually
-async function updateStock(index, change){
+async function updateStock(index, change) {
   productData[index].qty += change;
-  if(productData[index].qty < 0) productData[index].qty = 0;
-  try{
-    await setDoc(doc(db,"products",productData[index].id), {...productData[index]});
-  } catch(err){ console.error(err); }
-  localStorage.setItem('products', JSON.stringify(productData));
-  renderProducts(); renderAdminPanel(); updateStats();
+  if (productData[index].qty < 0) productData[index].qty = 0;
+  try { await setDoc(doc(db, "products", productData[index].id), { ...productData[index] }); }
+  catch (err) { console.error(err); }
+  saveLocal(); renderProducts(); renderAdminPanel(); updateStats();
 }
 
-// Clear sales history
-function clearHistory(){
-  if(confirm("Are you sure you want to clear sales history?")){
+function clearHistory() {
+  if (confirm("Are you sure you want to clear sales history?")) {
     soldData = [];
     saveLocal(); renderAdminPanel(); updateStats();
   }
 }
 
-// Print sales report
-function printReport(){
-  if(soldData.length === 0){ alert("No sales to print"); return; }
+/* =====================================================
+   REPORTS
+===================================================== */
+function printReport() {
+  if (soldData.length === 0) { alert("No sales to print"); return; }
   const win = window.open("", "_blank", "width=800,height=600");
   let html = `
     <html>
-    <head>
-      <title>${clientCompanyName} - Sales Report</title>
-      <style>
-        body{font-family:Arial,sans-serif;padding:20px;}
-        h2{text-align:center;margin-bottom:20px;}
-        table{width:100%;border-collapse:collapse;}
-        th,td{border:1px solid #999;padding:8px;text-align:left;}
-        th{background:#f2f2f2;}
-        tfoot{font-weight:bold;}
-      </style>
-    </head>
-    <body>
-      <h2>${clientCompanyName} - Sales Report</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Product</th><th>Qty</th><th>Unit Price (₦)</th><th>Total Price (₦)</th><th>Cash</th><th>POS</th><th>Bank</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${soldData.map(s=>`
+      <head>
+        <title>${clientCompanyName} - Sales Report</title>
+        <style>
+          body{font-family:Arial,sans-serif;padding:20px;}
+          h2{text-align:center;margin-bottom:20px;}
+          table{width:100%;border-collapse:collapse;}
+          th,td{border:1px solid #999;padding:8px;text-align:left;}
+          th{background:#f2f2f2;}
+          tfoot{font-weight:bold;}
+        </style>
+      </head>
+      <body>
+        <h2>${clientCompanyName} - Sales Report</h2>
+        <table>
+          <thead>
             <tr>
-              <td>${s.name}</td>
-              <td>${s.qty}</td>
-              <td>${s.price}</td>
-              <td>${s.price*s.qty}</td>
-              <td>${s.payment?.cash||0}</td>
-              <td>${s.payment?.pos||0}</td>
-              <td>${s.payment?.bank||0}</td>
-            </tr>`).join('')}
-        </tbody>
-        <tfoot>
-          <tr><td colspan="3">Total Sales</td><td colspan="4">₦${soldData.reduce((sum,s)=>sum+s.price*s.qty,0)}</td></tr>
-        </tfoot>
-      </table>
-    </body>
+              <th>Product</th><th>Qty</th><th>Unit Price (₦)</th><th>Total Price (₦)</th><th>Cash</th><th>POS</th><th>Bank</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${soldData.map(s => `
+              <tr>
+                <td>${s.name}</td><td>${s.qty}</td><td>${s.price}</td><td>${s.price*s.qty}</td>
+                <td>${s.payment?.cash||0}</td><td>${s.payment?.pos||0}</td><td>${s.payment?.bank||0}</td>
+              </tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr><td colspan="3">Total Sales</td><td colspan="4">₦${soldData.reduce((sum,s)=>sum+s.price*s.qty,0)}</td></tr>
+          </tfoot>
+        </table>
+      </body>
     </html>`;
   win.document.write(html); win.document.close(); win.print();
 }
 
-// Admin link click
-document.querySelectorAll('a[href="#admin"]').forEach(a=>{
-  a.onclick=e=>{
-    e.preventDefault();
-    showAdmin(); scrollTo({top:0,behavior:'smooth'});
-  };
+function exportToExcel() {
+  if (soldData.length === 0) { alert("No sales to export"); return; }
+  const header = ["Product","Qty","Unit Price","Total Price","Cash","POS","Bank"];
+  const rows = soldData.map(s => [
+    s.name, s.qty, s.price, s.price*s.qty,
+    s.payment?.cash||0, s.payment?.pos||0, s.payment?.bank||0
+  ]);
+  const csvContent = [header,...rows].map(e=>e.join(",")).join("\n");
+  const blob = new Blob([csvContent],{type:"text/csv;charset=utf-8;"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `${clientCompanyName}_Sales_Report.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* =====================================================
+   ADMIN LINK CLICK
+===================================================== */
+document.querySelectorAll('a[href="#admin"]').forEach(a => {
+  a.onclick = e => { e.preventDefault(); showAdmin(); scrollTo({ top:0, behavior:'smooth' }); };
 });
 
-// INITIAL LOAD
+/* =====================================================
+   INITIAL LOAD
+===================================================== */
 loadProducts();
 updateCartUI();
 updateStats();
