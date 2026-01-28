@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MCODE SALES</title>
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+html { scroll-behavior: smooth; }
+.bottom-nav { box-shadow: 0 -2px 10px rgba(0,0,0,0.08); }
+.hidden-modal { display: none; }
+.fade { transition: all .25s ease; }
+.low-stock { color: red; font-weight: bold; }
+</style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- CLIENT COMPANY NAME -->
+<script>
+let clientCompanyName = "My Company";
+function setCompanyName(){
+  let pass = prompt("Enter password to update company name:");
+  if(pass === "ADMIN123"){
+    let name = prompt("Enter new Company Name:", clientCompanyName);
+    if(name) {
+      clientCompanyName = name;
+      document.getElementById('companyName').innerText = clientCompanyName;
+      saveToFirebase(); // save updated company name
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>document.getElementById('companyName').innerText=clientCompanyName);
+</script>
+
+<header class="fixed top-0 left-0 w-full z-40 bg-white shadow">
+  <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+    <h1 onclick="setCompanyName()" class="text-2xl font-bold text-red-600 cursor-pointer" id="companyName"></h1>
+    <div class="flex items-center gap-4">
+      <span id="userEmail" class="text-gray-700">Admin</span>
+      <button id="authBtn" title="Login / Logout" class="text-xl">🔑</button>
+    </div>
+  </div>
+</header>
+
+<!-- MOBILE NAV -->
+<nav class="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around text-sm py-2 md:hidden bottom-nav z-40">
+  <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
+  <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
+  <a href="#admin" class="flex flex-col items-center text-gray-600">📊<span>Admin</span></a>
+  <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
+</nav>
+
+<!-- FLOATING CART BUTTON -->
+<button id="cartBtn" class="fixed bottom-24 right-4 z-50 bg-gradient-to-r from-red-500 to-red-700 text-white px-4 py-3 rounded-full shadow-lg font-semibold flex items-center gap-2">
+  🛒 <span id="cartCount">0</span>
+</button>
+
+<!-- PRODUCTS SECTION -->
+<section id="products" class="py-16">
+  <div class="max-w-6xl mx-auto px-6">
+    <h2 class="text-3xl font-bold mb-6 flex justify-between items-center">
+      Your Products
+      <input type="text" id="searchProd" placeholder="🔍 Search" class="border p-1 rounded w-48">
+    </h2>
+    <form id="addProductForm" class="mb-8 grid grid-cols-1 md:grid-cols-5 gap-4">
+      <input type="text" placeholder="Product Name" id="prodName" class="border p-2 rounded">
+      <input type="number" placeholder="Price (₦)" id="prodPrice" class="border p-2 rounded">
+      <input type="number" placeholder="Quantity" id="prodQty" class="border p-2 rounded" min="1" value="1">
+      <button type="submit" class="bg-gradient-to-r from-red-500 to-red-700 text-white py-2 px-4 rounded">Add Product</button>
+    </form>
+    <div class="grid md:grid-cols-3 gap-6" id="productList"></div>
+  </div>
+</section>
+
+<!-- ADMIN SECTION -->
+<section id="admin" class="py-16 bg-gray-200 hidden">
+  <div class="max-w-6xl mx-auto px-6">
+    <h2 class="text-3xl font-bold mb-6">Admin Panel — Stock Manager</h2>
+    <div id="adminList" class="space-y-2 text-gray-800"></div>
+  </div>
+  <div id="adminStock" class="space-y-4">
+  <h3 class="text-xl font-bold mb-2">Manage Products</h3>
+  <div id="adminProductList"></div>
+</div>
+  <section id="history" class="py-16 bg-white hidden">
+    <div class="max-w-6xl mx-auto px-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-2xl font-bold">Sales History</h2>
+        <div class="flex gap-2">
+          <button onclick="printHistory()" class="bg-blue-600 text-white px-3 py-1 rounded">🖨 Print</button>
+          <button onclick="exportExcel()" class="bg-green-600 text-white px-3 py-1 rounded">⬇ Export Excel</button>
+          <button onclick="toggleHistory()" class="bg-gray-600 text-white px-3 py-1 rounded">❌ Close</button>
+        </div>
+      </div>
+      <div id="historyList" class="space-y-2"></div>
+    </div>
+  </section>
+  <button onclick="toggleHistory()" class="bg-black text-white px-3 py-1 rounded">
+    View Sales
+  </button>
+</section>
+
+<!-- CART MODAL -->
+<div id="cartModal" class="hidden-modal fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="bg-white w-96 rounded-lg p-5 shadow fade">
+    <h3 class="text-xl font-semibold mb-3">Your Cart</h3>
+    <div id="cartItems" class="space-y-2 text-gray-800"></div>
+    <p class="font-semibold mt-3">Total: ₦<span id="cartTotal">0</span></p>
+    <button id="checkoutBtn" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 mt-4 rounded">Checkout</button>
+    <button id="closeCart" class="w-full py-2 mt-2 rounded border border-gray-300">Close</button>
+  </div>
+</div>
+
+<!-- CHECKOUT MODAL -->
+<div id="checkoutModal" class="hidden-modal fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="bg-white w-96 rounded-lg p-5 shadow fade">
+    <h3 class="text-xl font-bold mb-3">Checkout — Multiple Payments</h3>
+    <input id="custName" placeholder="Your Name" class="border p-2 rounded w-full mb-2">
+    <input id="custPhone" placeholder="Phone Number" class="border p-2 rounded w-full mb-2">
+    <textarea disabled class="border p-2 rounded w-full mb-3" id="orderSummary"></textarea>
+    <div class="space-y-2 mb-3">
+      <input id="cashPay" type="number" placeholder="Cash Amount" class="border p-2 rounded w-full">
+      <input id="posPay" type="number" placeholder="POS Amount" class="border p-2 rounded w-full">
+      <input id="bankPay" type="number" placeholder="Bank Transfer Amount" class="border p-2 rounded w-full">
+    </div>
+    <button id="confirmOrder" class="bg-green-600 text-white w-full py-2 rounded">Confirm Order</button>
+    <button id="closeCheckout" class="w-full py-2 mt-2 rounded border border-gray-300">Cancel</button>
+  </div>
+</div>
+
+<script>
+/* ==============================
+   FIREBASE INIT
+============================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
+  authDomain: "mcode-sales.firebaseapp.com",
+  projectId: "mcode-sales",
+  databaseURL: "https://mcode-sales-default-rtdb.firebaseio.com",
+  storageBucket: "mcode-sales.appspot.com",
+  messagingSenderId: "823876737976",
+  appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.database();
+
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+/* =====================================================
+   APP STATE
+===================================================== */
+let userUID = null;
+let productData = [];
+let cart = [];
+let soldData = [];
+
+/* ==============================
+   AUTH HANDLER
+============================== */
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    userUID = user.uid;
+    document.getElementById("userEmail").innerText = user.email;
+    setAuthIcon(true);
+    await loadFromFirebase();
+    renderProducts();
+    updateCartUI();
+    
+ window.addEventListener("hashchange", () => {
+  if (location.hash === "#admin") {
+    adminGate();
+  }
+});
+  } else {
+    disableAdmin();
+    setAuthIcon(false);
+    window.location.href = "firebase login.html";
+  }
+});
+function requestAdminAccess(){
+  const pass = prompt("Enter Admin Password");
+  if(pass === "ADMIN123"){
+    localStorage.setItem("isAdmin", "true");
+    enableAdmin();
+  } else {
+    alert("Admin access denied");
+  }
+}
+function toggleHistory(){
+  const history = document.getElementById("history");
+  history.classList.toggle("hidden");
+  renderHistory();
+}
+function renderHistory(){
+  const list = document.getElementById("historyList");
+  list.innerHTML = "";
+
+  if(soldData.length === 0){
+    list.innerHTML = "<p class='text-gray-600'>No sales yet</p>";
+    return;
+  }
+
+  soldData.forEach((s, i) => {
+    list.innerHTML += `
+      <div class="bg-gray-100 p-3 rounded">
+        <p class="font-semibold">${i+1}. ${s.name} × ${s.qty}</p>
+        <p>Total: ₦${s.price * s.qty}</p>
+        <p class="text-sm text-gray-600">
+          Cash: ₦${s.payment.cash || 0},
+          POS: ₦${s.payment.pos || 0},
+          Bank: ₦${s.payment.bank || 0}
+        </p>
+      </div>
+    `;
+  });
+}
+function adminGate() {
+  disableAdmin(); // prevent flicker
+  
+  setTimeout(() => {
+    if (localStorage.getItem("isAdmin") === "true") {
+      enableAdmin();
+    } else {
+      requestAdminAccess();
+    }
+  }, 150); // small delay = smooth UX
+}
+function enableAdmin(){
+  isAdmin = true;
+  document.getElementById("admin").classList.remove("hidden");
+}
+
+function disableAdmin(){
+  isAdmin = false;
+  localStorage.removeItem("isAdmin");
+  document.getElementById("admin").classList.add("hidden");
+}
+
+function setAuthIcon(loggedIn){
+  const btn = document.getElementById("authBtn");
+  btn.innerText = loggedIn ? "🔓" : "🔑";
+  btn.onclick = ()=>{ 
+    if(loggedIn){ auth.signOut(); } 
+    else { window.location.href="firebase login.html"; }
+  };
+}
+
+/* ==============================
+   FIREBASE DATA FUNCTIONS
+============================== */
+async function saveToFirebase(){
+  if(!userUID) return;
+  const ref = db.ref("users/" + userUID);
+  await ref.set({companyName: clientCompanyName, products: productData, cart: cart, sold: soldData});
+}
+
+async function loadFromFirebase(){
+  if(!userUID) return;
+  const ref = db.ref("users/" + userUID);
+  const snapshot = await ref.get();
+  if(snapshot.exists()){
+    const data = snapshot.val();
+    clientCompanyName = data.companyName || "My Company";
+    document.getElementById('companyName').innerText = clientCompanyName;
+    productData = data.products || [];
+    cart = data.cart || [];
+    soldData = data.sold || [];
+  }
+}
+
+/* =====================================================
+   RENDER & CART FUNCTIONS
+===================================================== */
+const productListEl = document.getElementById('productList');
+const cartItemsEl = document.getElementById('cartItems');
+const searchProd = document.getElementById('searchProd');
+const cartBtn = document.getElementById('cartBtn');
+const closeCart = document.getElementById('closeCart');
+const checkoutBtn = document.getElementById('checkoutBtn');
+const checkoutModal = document.getElementById('checkoutModal');
+const orderSummary = document.getElementById('orderSummary');
+const closeCheckout = document.getElementById('closeCheckout');
+const confirmOrder = document.getElementById('confirmOrder');
+const cashPay = document.getElementById('cashPay');
+const posPay = document.getElementById('posPay');
+const bankPay = document.getElementById('bankPay');
+
+function renderProducts(search=''){
+  productListEl.innerHTML='';
+  productData.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()))
+  .forEach((p,i)=>{
+    productListEl.innerHTML += `
+    <div class="bg-white shadow p-4 rounded-lg">
+      <h3 class="font-semibold">${p.name} ${p.qty<=5?`<span class="low-stock">(Low Stock: ${p.qty})</span>`:''}</h3>
+      <p class="text-red-600 font-bold">₦${p.price}</p>
+      <p class="text-sm">Stock: ${p.qty}</p>
+      <div class="flex justify-between mt-2">
+        <button onclick="adjustQty(${i},-1)" class="px-2 bg-gray-200 rounded">-</button>
+        <span id="qty${i}">1</span>
+        <button onclick="adjustQty(${i},1)" class="px-2 bg-gray-200 rounded">+</button>
+      </div>
+      <button onclick="addToCart(${i})" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 rounded mt-2">Add to Cart</button>
+    </div>`;
+  });
+}
+function renderAdminProducts() {
+  const adminList = document.getElementById("adminProductList");
+  adminList.innerHTML = "";
+
+  if(productData.length === 0){
+    adminList.innerHTML = "<p class='text-gray-600'>No products yet</p>";
+    return;
+  }
+
+  productData.forEach((p,i)=>{
+    adminList.innerHTML += `
+      <div class="flex items-center gap-2 bg-white p-2 rounded shadow">
+        <input type="text" value="${p.name}" class="border p-1 rounded w-32" onchange="updateName(${i}, this.value)">
+        <button onclick="changeQty(${i}, -1)" class="bg-gray-300 px-2 rounded">-</button>
+        <span id="adminQty${i}" class="w-8 text-center">${p.qty}</span>
+        <button onclick="changeQty(${i}, 1)" class="bg-gray-300 px-2 rounded">+</button>
+        <input type="number" value="${p.price}" class="border p-1 rounded w-24" onchange="updatePrice(${i}, this.value)">
+        <button onclick="deleteProduct(${i})" class="bg-red-600 text-white px-2 py-1 rounded">Delete</button>
+      </div>
+    `;
+  });
+}
+
+// Update name
+function updateName(idx, val){
+  if(!val) return alert("Name cannot be empty");
+  productData[idx].name = val;
+  saveToFirebase(); renderProducts(); renderAdminProducts();
+}
+
+// Update price
+function updatePrice(idx, val){
+  val = parseFloat(val);
+  if(isNaN(val) || val < 0) return alert("Invalid price");
+  productData[idx].price = val;
+  saveToFirebase(); renderProducts(); renderAdminProducts();
+}
+
+// Increment/decrement qty
+function changeQty(idx, val){
+  productData[idx].qty += val;
+  if(productData[idx].qty < 0) productData[idx].qty = 0;
+  document.getElementById("adminQty"+idx).innerText = productData[idx].qty;
+  saveToFirebase(); renderProducts();
+}
+
+// Delete product
+function deleteProduct(idx){
+  if(confirm("Are you sure you want to delete this product?")){
+    productData.splice(idx,1);
+    saveToFirebase(); renderProducts(); renderAdminProducts();
+  }
+}
+function enableAdmin(){
+  isAdmin = true;
+  document.getElementById("admin").classList.remove("hidden");
+  renderAdminProducts(); // Render admin stock table
+}
+function adjustQty(idx,val){
+  const el=document.getElementById('qty'+idx);
+  let qty=parseInt(el.innerText)+val;
+  if(qty<1) qty=1;
+  el.innerText=qty;
+}
+
+function addToCart(idx){
+  const qtySel = +document.getElementById('qty'+idx).innerText;
+  if(qtySel>productData[idx].qty) return alert("Not enough stock");
+  cart.push({...productData[idx], qty: qtySel});
+  updateCartUI();
+}
+
+function updateCartUI(){
+  cartItemsEl.innerHTML='';
+  let total=0;
+  cart.forEach((p,index)=>{
+    total+=p.price*p.qty;
+    cartItemsEl.innerHTML+=`
+    <div class="flex justify-between items-center bg-gray-100 p-2 rounded">
+      <div>
+        <p class="font-semibold">${p.name} x${p.qty}</p>
+        <p class="text-sm text-gray-600">₦${p.price*p.qty}</p>
+      </div>
+      <button onclick="removeFromCart(${index})" class="text-red-600 text-xl hover:scale-110 transition">❌</button>
+    </div>`;
+  });
+  document.getElementById('cartTotal').innerText=total;
+  document.getElementById('cartCount').innerText=cart.length;
+  saveToFirebase();
+}
+
+function removeFromCart(index){ cart.splice(index,1); updateCartUI(); saveToFirebase(); }
+
+/* =====================================================
+   ADD PRODUCT
+===================================================== */
+document.getElementById('addProductForm').onsubmit=e=>{
+  e.preventDefault();
+  if(prompt("Enter Password")!=="ADMIN123") return alert("Wrong password");
+  const name = document.getElementById('prodName').value;
+  const price = +document.getElementById('prodPrice').value;
+  const qty = +document.getElementById('prodQty').value;
+  if(!name || !price || !qty) return alert("Fill all fields");
+  productData.push({name,price,qty});
+  document.getElementById('prodName').value=''; document.getElementById('prodPrice').value=''; document.getElementById('prodQty').value='1';
+  saveToFirebase(); renderProducts();
+}
+
+/* =====================================================
+   SEARCH
+===================================================== */
+searchProd.oninput=e=>renderProducts(e.target.value);
+
+/* =====================================================
+   MODALS
+===================================================== */
+cartBtn.onclick=()=>document.getElementById('cartModal').style.display='flex';
+closeCart.onclick=()=>document.getElementById('cartModal').style.display='none';
+
+checkoutBtn.onclick=()=>{
+  document.getElementById('cartModal').style.display='none';
+  let summary='', total=0;
+  cart.forEach(i=>{summary+=`${i.name} x${i.qty} - ₦${i.price*i.qty}\n`; total+=i.price*i.qty;});
+  orderSummary.value = summary + `Total: ₦${total}`;
+  checkoutModal.style.display='flex';
+};
+closeCheckout.onclick=()=>checkoutModal.style.display='none';
+
+confirmOrder.onclick=()=>{
+  const cash=+cashPay.value||0, pos=+posPay.value||0, bank=+bankPay.value||0;
+  const paid = cash+pos+bank;
+  const total = cart.reduce((a,p)=>a+p.price*p.qty,0);
+  if(paid<total) return alert("Incomplete payment");
+  cart.forEach(c=>{
+    const idx=productData.findIndex(p=>p.name===c.name);
+    if(idx!==-1) productData[idx].qty -= c.qty;
+    soldData.push({...c,payment:{cash,pos,bank}});
+  });
+  cart=[]; updateCartUI(); renderProducts(); checkoutModal.style.display='none';
+  saveToFirebase(); alert("Sale completed");
+}
+</script>
+</body>
+</html>
