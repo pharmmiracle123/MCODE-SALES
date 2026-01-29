@@ -39,18 +39,44 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 <header class="fixed top-0 left-0 w-full z-40 bg-white shadow">
   <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
     <h1 onclick="setCompanyName()" class="text-2xl font-bold text-red-600 cursor-pointer" id="companyName"></h1>
-    <div class="flex items-center gap-4">
-      <span id="userEmail" class="text-gray-700">Admin</span>
-      <button id="authBtn" title="Login / Logout" class="text-xl">🔑</button>
+     <div class="flex items-center gap-2 shrink-0">
+        <span id="userEmail" class="hidden sm:block text-gray-400 text-sm truncate max-w-[140px]"></span>
+        <button
+          id="authBtn"
+          title="Login / Logout"
+          class="text-2xl leading-none"
+        >🔑</button>
+      </div>
+
     </div>
   </div>
 </header>
+<button
+  id="authBtn"
+  class="text-2xl p-1"
+>
+</header>
 
+
+
+<!-- DESKTOP NAV -->
+<nav class="hidden md:flex fixed top-16 left-0 w-full bg-white shadow z-30">
+  <div class="max-w-6xl mx-auto flex gap-6 px-6 py-3 font-semibold">
+     <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
+  <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
+  <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">
+  📊<span>Admin</span>
+</a>
+  <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
+  </div>
+</nav>
 <!-- MOBILE NAV -->
 <nav class="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around text-sm py-2 md:hidden bottom-nav z-40">
   <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
   <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
-  <a href="#admin" class="flex flex-col items-center text-gray-600">📊<span>Admin</span></a>
+  <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">
+  📊<span>Admin</span>
+</a>
   <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
 </nav>
 
@@ -242,15 +268,44 @@ function disableAdmin(){
   document.getElementById("admin").classList.add("hidden");
 }
 
-function setAuthIcon(loggedIn){
+function setAuthIcon(loggedIn) {
   const btn = document.getElementById("authBtn");
-  btn.innerText = loggedIn ? "🔓" : "🔑";
-  btn.onclick = ()=>{ 
-    if(loggedIn){ auth.signOut(); } 
-    else { window.location.href="firebase login.html"; }
-  };
+  
+  if (loggedIn) {
+    btn.innerText = "🚪"; // Logout icon
+    btn.title = "Logout";
+    
+    btn.onclick = async () => {
+      if (!confirm("Are you sure you want to logout?")) return;
+      
+      // Clear admin + local session
+      localStorage.removeItem("isAdmin");
+      
+      // Clear UI immediately
+      document.getElementById("userEmail").innerText = "";
+      document.getElementById("admin").classList.add("hidden");
+      
+      cart = [];
+      productData = [];
+      soldData = [];
+      
+      try {
+        await auth.signOut();
+        window.location.replace("firebase login.html");
+      } catch (err) {
+        alert("Logout failed");
+        console.error(err);
+      }
+    };
+    
+  } else {
+    btn.innerText = "🔑"; // Login icon
+    btn.title = "Login";
+    btn.onclick = () => {
+      window.location.href = "firebase login.html";
+    };
+  }
 }
-
 /* ==============================
    FIREBASE DATA FUNCTIONS
 ============================== */
