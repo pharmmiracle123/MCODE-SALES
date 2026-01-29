@@ -233,28 +233,38 @@ function toggleHistory(){
   history.classList.toggle("hidden");
   renderHistory();
 }
-function renderHistory(){
+function renderHistory() {
   const list = document.getElementById("historyList");
   list.innerHTML = "";
-
-  if(soldData.length === 0){
+  
+  if (soldData.length === 0) {
     list.innerHTML = "<p class='text-gray-600'>No sales yet</p>";
     return;
   }
-
-  soldData.forEach((s, i) => {
-    list.innerHTML += `
-      <div class="bg-gray-100 p-3 rounded">
-        <p class="font-semibold">${i+1}. ${s.name} × ${s.qty}</p>
-        <p>Total: ₦${s.price * s.qty}</p>
-        <p class="text-sm text-gray-600">
-          Cash: ₦${s.payment.cash || 0},
-          POS: ₦${s.payment.pos || 0},
-          Bank: ₦${s.payment.bank || 0}
-        </p>
-      </div>
-    `;
-  });
+  
+  // Group by date
+  const grouped = soldData.reduce((acc, s) => {
+    acc[s.date] = acc[s.date] || [];
+    acc[s.date].push(s);
+    return acc;
+  }, {});
+  
+  for (const date in grouped) {
+    list.innerHTML += `<h3 class="font-bold mt-4 mb-2 text-lg">${date}</h3>`;
+    grouped[date].forEach((s, i) => {
+      list.innerHTML += `
+        <div class="bg-gray-100 p-3 rounded mb-1">
+          <p class="font-semibold">${i + 1}. ${s.name} × ${s.qty}</p>
+          <p>Total: ₦${s.price * s.qty}</p>
+          <p class="text-sm text-gray-600">
+            Cash: ₦${s.payment.cash || 0},
+            POS: ₦${s.payment.pos || 0},
+            Bank: ₦${s.payment.bank || 0}
+          </p>
+        </div>
+      `;
+    });
+  }
 }
 function adminGate() {
   disableAdmin(); // prevent flicker
@@ -484,15 +494,10 @@ document.getElementById('addProductForm').onsubmit=e=>{
   document.getElementById('prodName').value=''; document.getElementById('prodPrice').value=''; document.getElementById('prodQty').value='1';
   saveToFirebase(); renderProducts();
 }
-
-/* =====================================================
-   SEARCH
-===================================================== */
+/* =  SEARCH===*/
 searchProd.oninput=e=>renderProducts(e.target.value);
 
-/* =====================================================
-   MODALS
-===================================================== */
+/* ====== MODALS ===*/
 cartBtn.onclick=()=>document.getElementById('cartModal').style.display='flex';
 closeCart.onclick=()=>document.getElementById('cartModal').style.display='none';
 
@@ -505,18 +510,172 @@ checkoutBtn.onclick=()=>{
 };
 closeCheckout.onclick=()=>checkoutModal.style.display='none';
 
-confirmOrder.onclick=()=>{
-  const cash=+cashPay.value||0, pos=+posPay.value||0, bank=+bankPay.value||0;
-  const paid = cash+pos+bank;
-  const total = cart.reduce((a,p)=>a+p.price*p.qty,0);
-  if(paid<total) return alert("Incomplete payment");
-  cart.forEach(c=>{
-    const idx=productData.findIndex(p=>p.name===c.name);
-    if(idx!==-1) productData[idx].qty -= c.qty;
-    soldData.push({...c,payment:{cash,pos,bank}});
+confirmOrder.onclick = () => {
+  const cash = +cashPay.value || 0,
+    pos = +posPay.value || 0,
+    bank = +bankPay.value || 0;
+  const paid = cash + pos + bank;
+  const total = cart.reduce((a, p) => a + p.price * p.qty, 0);
+  if (paid < total) return alert("Incomplete payment");
+  
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  
+  cart.forEach(c => {
+    const idx = productData.findIndex(p => p.name === c.name);
+    if (idx !== -1) productData[idx].qty -= c.qty;
+    soldData.push({
+      ...c,
+      date: today,
+      payment: { cash, pos, bank }
+    });
   });
-  cart=[]; updateCartUI(); renderProducts(); checkoutModal.style.display='none';
-  saveToFirebase(); alert("Sale completed");
+  
+  cart = [];
+  updateCartUI();
+  renderProducts();
+  checkoutModal.style.display = 'none';
+  saveToFirebase();
+  alert("Sale completed");
+};
+/* ==============================
+   PRINT AND EXPORT FUNCTIONS (GROUPED BY DATE)
+============================== */
+
+// Print sales history grouped by date with grand totals and company name
+function printHistory() {
+  if (soldData.length === 0) return alert("No sales to print.");
+
+  // Group soldData by date
+  const grouped = soldData.reduce((acc, s) => {
+    acc[s.date] = acc[s.date] || [];
+    acc[s.date].push(s);
+    return acc;
+  }, {});
+
+  // Build HTML table for printing
+  let printContent = `
+    <html>
+    <head>
+      <title>Sales History</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 20px; color: #333; }
+        h1 { text-align: center; font-size: 28px; font-weight: bold; margin-bottom: 10px; }
+        h2 { margin-top: 40px; border-bottom: 2px solid #333; padding-bottom: 5px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #999; padding: 8px; text-align: left; }
+        th { background-color: #f4f4f4; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tfoot td { font-weight: bold; background-color: #cbd5e1; font-size: 1.1em; }
+      </style>
+    </head>
+    <body>
+      <h1>${clientCompanyName}</h1>
+      <h1>Sales History Report</h1>
+  `;
+
+  for (const date in grouped) {
+    printContent += `<h2>Date: ${date}</h2>`;
+    printContent += `
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Product</th>
+            <th>Quantity</th>
+            <th>Total (₦)</th>
+            <th>Cash (₦)</th>
+            <th>POS (₦)</th>
+            <th>Bank (₦)</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    let grandTotal = 0, totalCash = 0, totalPOS = 0, totalBank = 0;
+
+    grouped[date].forEach((s, i) => {
+      const total = s.price * s.qty;
+      grandTotal += total;
+      totalCash += s.payment.cash || 0;
+      totalPOS += s.payment.pos || 0;
+      totalBank += s.payment.bank || 0;
+
+      printContent += `
+        <tr>
+          <td>${i + 1}</td>
+          <td>${s.name}</td>
+          <td>${s.qty}</td>
+          <td>${total}</td>
+          <td>${s.payment.cash || 0}</td>
+          <td>${s.payment.pos || 0}</td>
+          <td>${s.payment.bank || 0}</td>
+        </tr>
+      `;
+    });
+
+    // Add grand total row with highlighted style
+    printContent += `
+        </tbody>
+        <tfoot>
+          <tr style="background-color: #94a3b8; color: #fff; font-weight: bold; font-size: 1.1em;">
+            <td colspan="3">Grand Total</td>
+            <td>${grandTotal}</td>
+            <td>${totalCash}</td>
+            <td>${totalPOS}</td>
+            <td>${totalBank}</td>
+          </tr>
+        </tfoot>
+      </table>`;
+  }
+
+  printContent += `</body></html>`;
+
+  const printWindow = window.open('', '', 'height=600,width=900');
+  printWindow.document.write(printContent);
+  printWindow.document.close();
+  printWindow.print();
+}
+// Export sales history to Excel (CSV) grouped by date with Grand Total per date and company name
+function exportExcel() {
+  if (soldData.length === 0) return alert("No sales to export.");
+
+  // Group soldData by date
+  const grouped = soldData.reduce((acc, s) => {
+    acc[s.date] = acc[s.date] || [];
+    acc[s.date].push(s);
+    return acc;
+  }, {});
+
+  // Add company name at the top
+  let csv = `${clientCompanyName}\n\n`; // This will appear at the top row
+  csv += 'Date,Product,Quantity,Total,Cash,POS,Bank\n';
+
+  for (const date in grouped) {
+    let grandTotal = 0, totalCash = 0, totalPOS = 0, totalBank = 0;
+
+    grouped[date].forEach(s => {
+      const total = s.price * s.qty;
+      grandTotal += total;
+      totalCash += s.payment.cash || 0;
+      totalPOS += s.payment.pos || 0;
+      totalBank += s.payment.bank || 0;
+
+      csv += `${date},${s.name},${s.qty},${total},${s.payment.cash || 0},${s.payment.pos || 0},${s.payment.bank || 0}\n`;
+    });
+
+    // Add Grand Total row for the date
+    csv += `${date},Grand Total,,${grandTotal},${totalCash},${totalPOS},${totalBank}\n\n`;
+  }
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", "sales_history.csv");
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 </script>
 </body>
