@@ -58,16 +58,19 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 </header>
 
 
-
-<!-- DESKTOP NAV -->
+<!-- DESKTOP NAV FULL WIDTH -->
 <nav class="hidden md:flex fixed top-16 left-0 w-full bg-white shadow z-30">
-  <div class="max-w-6xl mx-auto flex gap-6 px-6 py-3 font-semibold">
-     <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
-  <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
-  <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">
-  📊<span>Admin</span>
-</a>
-  <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
+  <div class="flex justify-around items-center w-full py-3 font-semibold px-4">
+    <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
+    <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
+    <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">📊<span>Admin</span></a>
+    <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
+    
+    <!-- SEARCH ICON with adjustable size -->
+    <button id="desktopSearchBtn" class="flex flex-col items-center text-gray-600">
+      🔍
+      <span class="hidden md:block text-xs sm:text-sm">Search</span>
+    </button>
   </div>
 </nav>
 <!-- MOBILE NAV -->
@@ -84,7 +87,7 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 <button id="cartBtn" class="fixed bottom-24 right-4 z-50 bg-gradient-to-r from-red-500 to-red-700 text-white px-4 py-3 rounded-full shadow-lg font-semibold flex items-center gap-2">
   🛒 <span id="cartCount">0</span>
 </button>
-
+<br />
 <!-- PRODUCTS SECTION -->
 <section id="products" class="py-16">
   <div class="max-w-6xl mx-auto px-6">
