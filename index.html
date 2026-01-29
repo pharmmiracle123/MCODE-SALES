@@ -37,52 +37,20 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 </script>
 
 <header class="fixed top-0 left-0 w-full z-40 bg-white shadow">
-  <div class="max-w-6xl mx-auto px-4 py-3">
-    <div class="flex items-center justify-between gap-3">
-
-      <!-- Company Name -->
-      <h1 
-        onclick="setCompanyName()"
-        id="companyName"
-        class="text-lg sm:text-2xl font-bold text-red-600 truncate cursor-pointer max-w-[65%]"
-      ></h1>
-
-      <!-- Right controls -->
-      <div class="flex items-center gap-2 shrink-0">
-        <span id="userEmail" class="hidden sm:block text-gray-400 text-sm truncate max-w-[140px]"></span>
-        <button
-          id="authBtn"
-          title="Login / Logout"
-          class="text-2xl leading-none"
-        >🔑</button>
-      </div>
-
+  <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
+    <h1 onclick="setCompanyName()" class="text-2xl font-bold text-red-600 cursor-pointer" id="companyName"></h1>
+    <div class="flex items-center gap-4">
+      <span id="userEmail" class="text-gray-700">Admin</span>
+      <button id="authBtn" title="Login / Logout" class="text-xl">🔑</button>
     </div>
   </div>
 </header>
-<button
-  id="authBtn"
-  class="text-2xl p-1"
->
 
 <!-- MOBILE NAV -->
-<!-- DESKTOP NAV -->
-<nav class="hidden md:flex fixed top-16 left-0 w-full bg-white shadow z-30">
-  <div class="max-w-6xl mx-auto flex gap-6 px-6 py-3 font-semibold">
-     <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
-  <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
-  <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">
-  📊<span>Admin</span>
-</a>
-  <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
-  </div>
-</nav>
 <nav class="fixed bottom-0 left-0 w-full bg-white border-t flex justify-around text-sm py-2 md:hidden bottom-nav z-40">
   <a href="#products" class="flex flex-col items-center text-gray-600">🛍<span>Products</span></a>
   <a href="#rental" class="flex flex-col items-center text-gray-600">🔋<span>Rent</span></a>
-  <a href="#admin" onclick="openAdmin(event)" class="flex flex-col items-center text-gray-600">
-  📊<span>Admin</span>
-</a>
+  <a href="#admin" class="flex flex-col items-center text-gray-600">📊<span>Admin</span></a>
   <a href="#contact" class="flex flex-col items-center text-gray-600">☎️<span>Contact</span></a>
 </nav>
 
@@ -92,7 +60,6 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 </button>
 
 <!-- PRODUCTS SECTION -->
-<body class="bg-gray-50 text-gray-800 pt-28">
 <section id="products" class="py-16">
   <div class="max-w-6xl mx-auto px-6">
     <h2 class="text-3xl font-bold mb-6 flex justify-between items-center">
@@ -105,12 +72,12 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
       <input type="number" placeholder="Quantity" id="prodQty" class="border p-2 rounded" min="1" value="1">
       <button type="submit" class="bg-gradient-to-r from-red-500 to-red-700 text-white py-2 px-4 rounded">Add Product</button>
     </form>
-    <div class="grid md:grid-cols-3 gap-6" id="productList" class="bg-gradient-to-r from-red-500 to-red-700 text-white py-2 px-4 rounded"></div>
-  </div> <br />
+    <div class="grid md:grid-cols-3 gap-6" id="productList"></div>
+  </div>
 </section>
 
 <!-- ADMIN SECTION -->
-<section id="admin" class="py-16 bg-gray-200 hidden md:block">
+<section id="admin" class="py-16 bg-gray-200 hidden">
   <div class="max-w-6xl mx-auto px-6">
     <h2 class="text-3xl font-bold mb-6">Admin Panel — Stock Manager</h2>
     <div id="adminList" class="space-y-2 text-gray-800"></div>
@@ -205,40 +172,24 @@ auth.onAuthStateChanged(async user => {
     renderProducts();
     updateCartUI();
     
+ window.addEventListener("hashchange", () => {
+  if (location.hash === "#admin") {
+    adminGate();
+  }
+});
   } else {
     disableAdmin();
     setAuthIcon(false);
     window.location.href = "firebase login.html";
   }
 });
-function enableAdmin(){
-  document.getElementById("admin").classList.remove("hidden");
-
-  setTimeout(() => {
-    disableAdmin();
-    alert("Admin session expired");
-  }, 5 * 60 * 1000); // 5 minutes
-}
-function requestAdminAccess() {
-  // Always remove admin access before asking
-  disableAdmin();
-  
+function requestAdminAccess(){
   const pass = prompt("Enter Admin Password");
-  
-  // If user cancels or leaves empty
-  if (!pass) {
-    alert("Admin access cancelled");
-    location.hash = "#products"; // move away safely
-    return;
-  }
-  
-  if (pass === "ADMIN123") {
+  if(pass === "ADMIN123"){
     localStorage.setItem("isAdmin", "true");
     enableAdmin();
-    location.hash = "#admin";
   } else {
     alert("Admin access denied");
-    location.hash = "#products";
   }
 }
 function toggleHistory(){
@@ -291,43 +242,13 @@ function disableAdmin(){
   document.getElementById("admin").classList.add("hidden");
 }
 
-function setAuthIcon(loggedIn) {
+function setAuthIcon(loggedIn){
   const btn = document.getElementById("authBtn");
-  
-  if (loggedIn) {
-    btn.innerText = "🚪"; // Logout icon
-    btn.title = "Logout";
-    
-    btn.onclick = async () => {
-      if (!confirm("Are you sure you want to logout?")) return;
-      
-      // Clear admin + local session
-      localStorage.removeItem("isAdmin");
-      
-      // Clear UI immediately
-      document.getElementById("userEmail").innerText = "";
-      document.getElementById("admin").classList.add("hidden");
-      
-      cart = [];
-      productData = [];
-      soldData = [];
-      
-      try {
-        await auth.signOut();
-        window.location.replace("firebase login.html");
-      } catch (err) {
-        alert("Logout failed");
-        console.error(err);
-      }
-    };
-    
-  } else {
-    btn.innerText = "🔑"; // Login icon
-    btn.title = "Login";
-    btn.onclick = () => {
-      window.location.href = "firebase login.html";
-    };
-  }
+  btn.innerText = loggedIn ? "🔓" : "🔑";
+  btn.onclick = ()=>{ 
+    if(loggedIn){ auth.signOut(); } 
+    else { window.location.href="firebase login.html"; }
+  };
 }
 
 /* ==============================
@@ -478,12 +399,7 @@ function updateCartUI(){
   document.getElementById('cartCount').innerText=cart.length;
   saveToFirebase();
 }
-function openAdmin(e) {
-  e.preventDefault(); // stop default hash behavior
 
-  // ALWAYS request admin access when tapped
-  requestAdminAccess();
-}
 function removeFromCart(index){ cart.splice(index,1); updateCartUI(); saveToFirebase(); }
 
 /* =====================================================
@@ -529,153 +445,11 @@ confirmOrder.onclick=()=>{
   cart.forEach(c=>{
     const idx=productData.findIndex(p=>p.name===c.name);
     if(idx!==-1) productData[idx].qty -= c.qty;
-    soldData.push({
-  ...c,
-  payment: { cash, pos, bank },
-  date: new Date().toISOString()
-});
+    soldData.push({...c,payment:{cash,pos,bank}});
   });
   cart=[]; updateCartUI(); renderProducts(); checkoutModal.style.display='none';
   saveToFirebase(); alert("Sale completed");
 }
-function printHistory() {
-  if (soldData.length === 0) {
-    alert("No sales to print");
-    return;
-  }
-  function exportExcel() {
-  if (soldData.length === 0) {
-    alert("No sales to export");
-    return;
-  }
-  
-  let csv = "S/N,Product,Quantity,Total,Cash,POS,Bank,Date\n";
-  
-  soldData.forEach((s, i) => {
-    const total = s.price * s.qty;
-    csv += `${i + 1},${s.name},${s.qty},${total},${s.payment.cash || 0},${s.payment.pos || 0},${s.payment.bank || 0},${new Date().toLocaleString()}\n`;
-  });
-  
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `sales-history-${Date.now()}.csv`;
-  a.click();
-  
-  URL.revokeObjectURL(url);
-}
-
-  let html = `
-    <html>
-    <head>
-      <title>Sales History</title>
-      <style>
-        body { font-family: Arial; padding: 20px; }
-        h2 { text-align: center; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #333; padding: 8px; text-align: left; }
-        th { background: #f2f2f2; }
-      </style>
-    </head>
-    <body>
-      <h2>${clientCompanyName}</h2>
-      <p>Date: ${new Date().toLocaleString()}</p>
-
-      <table>
-        <tr>
-          <th>#</th>
-          <th>Product</th>
-          <th>Qty</th>
-          <th>Total (₦)</th>
-          <th>Cash</th>
-          <th>POS</th>
-          <th>Bank</th>
-        </tr>
-  `;
-
-  soldData.forEach((s, i) => {
-    html += `
-      <tr>
-        <td>${i + 1}</td>
-        <td>${s.name}</td>
-        <td>${s.qty}</td>
-        <td>${s.price * s.qty}</td>
-        <td>${s.payment.cash || 0}</td>
-        <td>${s.payment.pos || 0}</td>
-        <td>${s.payment.bank || 0}</td>
-      </tr>
-    `;
-  });
-
-  html += `
-      </table>
-    </body>
-    </html>
-  `;
-
-  const win = window.open("", "", "width=900,height=600");
-  win.document.write(html);
-  win.document.close();
-  win.print();
-}
-function printSingleReceipt(sale) {
-  let html = `
-  <html>
-  <head>
-    <title>Receipt</title>
-    <style>
-      body { font-family: monospace; padding: 15px; }
-      h2 { text-align: center; }
-      table { width: 100%; margin-top: 10px; }
-      td { padding: 4px; }
-      .center { text-align: center; }
-      hr { margin: 10px 0; }
-    </style>
-  </head>
-  <body>
-    <h2>${clientCompanyName}</h2>
-    <p class="center">Sales Receipt</p>
-    <hr>
-
-    <table>
-      <tr><td>Item:</td><td>${sale.name}</td></tr>
-      <tr><td>Qty:</td><td>${sale.qty}</td></tr>
-      <tr><td>Price:</td><td>₦${sale.price}</td></tr>
-      <tr><td>Total:</td><td>₦${sale.qty * sale.price}</td></tr>
-    </table>
-
-    <hr>
-    <p>Cash: ₦${sale.payment.cash || 0}</p>
-    <p>POS: ₦${sale.payment.pos || 0}</p>
-    <p>Bank: ₦${sale.payment.bank || 0}</p>
-
-    <hr>
-    <p class="center">${new Date(sale.date).toLocaleString()}</p>
-    <p class="center">Thank you for your patronage</p>
-  </body>
-  </html>
-  `;
-
-  const win = window.open("", "", "width=300,height=600");
-  win.document.write(html);
-  win.document.close();
-  win.print();
-}
-printSingleReceipt(soldData[index]);
-function groupSalesByDate() {
-  const grouped = {};
-
-  soldData.forEach(sale => {
-    const date = new Date(sale.date).toISOString().split("T")[0];
-    if (!grouped[date]) grouped[date] = [];
-    grouped[date].push(sale);
-  });
-
-  return grouped;
-}
-
 </script>
 </body>
 </html>
