@@ -157,7 +157,7 @@ button:hover {
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, push, onValue, update, remove, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
 /* ====== FIREBASE CONFIG ====== */
@@ -170,6 +170,7 @@ const firebaseConfig = {
   messagingSenderId: "823876737976",
   appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
 };
+
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
@@ -190,107 +191,132 @@ const alertSound = document.getElementById("alertSound");
 const searchInput = document.getElementById("searchInput");
 const nearDaysInput = document.getElementById("nearDaysInput");
 
+/* ====== STATE ====== */
 let currentUser = null;
 let productsRef = null;
 let thresholdRef = null;
-let alertPlayed = false; 
-const role = localStorage.getItem("role") || "user";
+let thresholdDays = 7;
+let alertPlayed = false;
 
-/* ====== INIT PAGE ====== */
-function initPageForUser(user){
-  if(!user) return;
+/* ====== AUTH ====== */
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    alert("You must be signed in");
+    window.location.href = "firebase login.html";
+    return;
+  }
+
   currentUser = user;
   const uid = user.uid;
+
   productsRef = ref(db, `users/${uid}/expiryProducts`);
   thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
 
-  // Load threshold from Firebase
+  /* ===== LOAD THRESHOLD (Firebase → Local → Default) ===== */
   onValue(thresholdRef, snap => {
-    const val = snap.val();
-    if(val && val.value !== undefined){
-      nearDaysInput.value = val.value;
-      localStorage.setItem("nearExpiryDays", val.value);
+    if (snap.exists()) {
+      thresholdDays = Number(snap.val());
+      localStorage.setItem("nearExpiryDays", thresholdDays);
     } else {
-      nearDaysInput.value = localStorage.getItem("nearExpiryDays") || 7;
+      thresholdDays = Number(localStorage.getItem("nearExpiryDays")) || 7;
+      set(thresholdRef, thresholdDays); // initialize firebase
     }
-    loadBinCards();
+    nearDaysInput.value = thresholdDays;
+    renderProducts();
   });
 
-  loadBinCards();
-}
-
-/* ====== AUTH STATE ====== */
-onAuthStateChanged(auth, user => {
-  if(user){
-    initPageForUser(user);
-  } else {
-    alert("You must be signed in to access this page.");
-    window.location.href = "firebase login.html";
-  }
+  /* ===== LOAD PRODUCTS ===== */
+  onValue(productsRef, () => {
+    renderProducts();
+  });
 });
 
-/* ====== SAVE PRODUCT ====== */
-binForm.addEventListener("submit", async e => {
+/* ===== SAVE PRODUCT (100% FIREBASE SAFE) ===== */
+binForm.addEventListener("submit", e => {
   e.preventDefault();
-  if(!productsRef || !currentUser) return alert("User not authenticated yet.");
+
+  if (!productsRef) {
+    alert("User not ready. Please wait.");
+    return;
+  }
 
   const data = {
-    name: nameInput.value,
+    name: nameInput.value.trim(),
     qty: Number(qtyInput.value),
-    batch: batchInput.value || "-",
+    batch: batchInput.value.trim() || "-",
     expiry: expiryInput.value,
-    handled: false
+    handled: false,
+    createdAt: Date.now()
   };
 
-  try {
-    await push(productsRef, data);
-    binForm.reset();
-    successMsg.classList.remove("hidden");
-    setTimeout(()=>successMsg.classList.add("hidden"), 3000);
-  } catch(err){
-    alert("Error saving record: "+err);
-  }
+  push(productsRef, data)
+    .then(() => {
+      binForm.reset();
+      successMsg.classList.remove("hidden");
+      setTimeout(() => successMsg.classList.add("hidden"), 2500);
+    })
+    .catch(err => alert("Firebase error: " + err.message));
 });
 
-/* ====== THRESHOLD INPUT ====== */
+/* ===== THRESHOLD INPUT (NO FIXED 7) ===== */
 nearDaysInput.addEventListener("input", () => {
-  const val = Number(nearDaysInput.value) || 7;
+  const val = Number(nearDaysInput.value);
+  if (isNaN(val) || val < 0) return;
+
+  thresholdDays = val;
   localStorage.setItem("nearExpiryDays", val);
 
-  if(thresholdRef && currentUser){
-    // Must pass object
-    update(thresholdRef, { value: val });
+  if (thresholdRef) {
+    set(thresholdRef, val); // ✔ correct (NO update error)
   }
 
-  loadBinCards();
+  renderProducts();
 });
 
-/* ====== LOAD BIN CARDS ====== */
-function loadBinCards(){
-  if(!productsRef) return;
+/* ===== RENDER PRODUCTS ===== */
+function renderProducts() {
+  if (!productsRef) return;
+
   onValue(productsRef, snap => {
-    const filterText = searchInput.value.toLowerCase();
     cards.innerHTML = "";
-    let total=0, near=0, expired=0;
-    const today = new Date(); today.setHours(0,0,0,0);
+    alertPlayed = false;
 
-    const NEAR_EXPIRY_DAYS = Number(nearDaysInput.value) || 7;
+    let total = 0, near = 0, expired = 0;
+    const filter = searchInput.value.toLowerCase();
+    const today = new Date();
+    today.setHours(0,0,0,0);
 
-    if(!snap.exists()){ empty.classList.remove("hidden"); return; }
+    if (!snap.exists()) {
+      empty.classList.remove("hidden");
+      totalEl.textContent = nearEl.textContent = expiredEl.textContent = 0;
+      return;
+    }
+
     empty.classList.add("hidden");
 
     snap.forEach(child => {
-      const p = child.val(), id = child.key;
+      const p = child.val();
+      const id = child.key;
 
-      if(filterText && !p.name.toLowerCase().includes(filterText)) return;
+      if (filter && !p.name.toLowerCase().includes(filter)) return;
 
       total++;
-      const exp = new Date(p.expiry); exp.setHours(0,0,0,0);
-      const diff = Math.ceil((exp - today)/(1000*60*60*24));
+      const exp = new Date(p.expiry);
+      exp.setHours(0,0,0,0);
+      const diff = Math.ceil((exp - today) / 86400000);
 
-      let status="OK", color="border-gray-300";
-      if(diff < 0){ status="EXPIRED"; color="border-red-500"; expired++; }
-      else if(diff <= NEAR_EXPIRY_DAYS){ status="NEAR EXPIRY"; color="border-yellow-500"; near++; }
+      let status = "OK";
+      let color = "border-gray-300";
+
+      if (diff < 0) {
+        status = "EXPIRED";
+        color = "border-red-500";
+        expired++;
+      } else if (diff <= thresholdDays) {
+        status = "NEAR EXPIRY";
+        color = "border-yellow-500";
+        near++;
+      }
 
       const card = document.createElement("div");
       card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow ${p.handled ? "handled" : ""}`;
@@ -305,46 +331,41 @@ function loadBinCards(){
       `;
 
       const actions = document.createElement("div");
-      actions.className="mt-4 grid grid-cols-3 gap-2 no-print";
+      actions.className = "mt-4 grid grid-cols-3 gap-2 no-print";
 
       const editBtn = document.createElement("button");
-      editBtn.className="border py-1 rounded text-sm";
-      editBtn.textContent="Edit";
-      editBtn.addEventListener("click", ()=>{
-        const newName = prompt("New Product Name", p.name) || p.name;
-        const newQty = Number(prompt("New quantity", p.qty)) || p.qty;
-        const newBatch = prompt("New batch", p.batch) || p.batch;
-        const newExp = prompt("New expiry YYYY-MM-DD", p.expiry) || p.expiry;
-
+      editBtn.className = "border py-1 rounded text-sm";
+      editBtn.textContent = "Edit";
+      editBtn.onclick = () => {
         update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), {
-          name: newName,
-          qty: newQty,
-          batch: newBatch,
-          expiry: newExp,
+          name: prompt("Name", p.name) || p.name,
+          qty: Number(prompt("Qty", p.qty)) || p.qty,
+          batch: prompt("Batch", p.batch) || p.batch,
+          expiry: prompt("Expiry YYYY-MM-DD", p.expiry) || p.expiry,
           handled: false
         });
-      });
+      };
 
       const markBtn = document.createElement("button");
-      markBtn.className="bg-green-600 text-white py-1 rounded text-sm";
+      markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
       markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
-      markBtn.addEventListener("click", ()=>{
-        update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), {handled: !p.handled});
-      });
+      markBtn.onclick = () => {
+        update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), {
+          handled: !p.handled
+        });
+      };
 
       const deleteBtn = document.createElement("button");
-      deleteBtn.className="bg-red-700 text-white py-1 rounded text-sm";
+      deleteBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
       deleteBtn.textContent = "Delete";
-      deleteBtn.addEventListener("click", ()=>{
-        if(confirm("Are you sure you want to delete this product?"))
+      deleteBtn.onclick = () => {
+        if (confirm("Delete this product?")) {
           remove(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`));
-      });
+        }
+      };
 
-      actions.appendChild(editBtn);
-      actions.appendChild(markBtn);
-      actions.appendChild(deleteBtn);
+      actions.append(editBtn, markBtn, deleteBtn);
       card.appendChild(actions);
-
       cards.appendChild(card);
     });
 
@@ -352,15 +373,15 @@ function loadBinCards(){
     nearEl.textContent = near;
     expiredEl.textContent = expired;
 
-    if(!alertPlayed && (near + expired > 0)){
+    if (!alertPlayed && (near > 0 || expired > 0)) {
       alertSound.play().catch(()=>{});
       alertPlayed = true;
     }
   });
 }
 
-/* ====== SEARCH FILTER ====== */
-searchInput.addEventListener("input", loadBinCards);
+/* ===== SEARCH ===== */
+searchInput.addEventListener("input", renderProducts);
 </script>
 
 </body>
