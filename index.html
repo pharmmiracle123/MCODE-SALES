@@ -16,6 +16,8 @@ html { scroll-behavior: smooth; }
 .fade { transition: all .25s ease; }
 .low-stock { color: red; font-weight: bold; }
 </style>
+  <link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#ef4444">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
@@ -677,6 +679,32 @@ function exportExcel() {
   link.click();
   document.body.removeChild(link);
 }
+  if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js')
+      .then(reg => console.log('Service Worker registered!', reg))
+      .catch(err => console.error('SW registration failed:', err));
+  });
+}
+
+// Optional: Add Install Button
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+
+  const btn = document.createElement('button');
+  btn.textContent = "Install MCODE";
+  btn.className = "fixed bottom-5 right-5 bg-red-600 text-white px-4 py-2 rounded shadow-lg z-50";
+  document.body.appendChild(btn);
+
+  btn.addEventListener('click', async () => {
+    deferredPrompt.prompt();
+    const choice = await deferredPrompt.userChoice;
+    if (choice.outcome === 'accepted') console.log("App installed!");
+    btn.remove();
+  });
+});
 </script>
 </body>
 </html>
