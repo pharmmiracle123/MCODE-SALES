@@ -160,7 +160,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebas
 import { getDatabase, ref, push, onValue, update, remove, set } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-/* ====== FIREBASE CONFIG ====== */
+/* ================= FIREBASE CONFIG ================= */
 const firebaseConfig = {
   apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
   authDomain: "mcode-sales.firebaseapp.com",
@@ -175,7 +175,7 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-/* ====== ELEMENTS ====== */
+/* ================= ELEMENTS ================= */
 const binForm = document.getElementById("binForm");
 const nameInput = document.getElementById("name");
 const qtyInput = document.getElementById("qty");
@@ -191,14 +191,14 @@ const alertSound = document.getElementById("alertSound");
 const searchInput = document.getElementById("searchInput");
 const nearDaysInput = document.getElementById("nearDaysInput");
 
-/* ====== STATE ====== */
+/* ================= STATE ================= */
 let currentUser = null;
 let productsRef = null;
 let thresholdRef = null;
 let thresholdDays = 7;
-let allProducts = {}; // memory cache
+let allProducts = {};
 
-/* ====== AUTH & INITIAL LOAD ====== */
+/* ================= AUTH ================= */
 onAuthStateChanged(auth, user => {
   if (!user) {
     alert("You must be signed in");
@@ -208,65 +208,78 @@ onAuthStateChanged(auth, user => {
 
   currentUser = user;
   const uid = user.uid;
+
   productsRef = ref(db, `users/${uid}/expiryProducts`);
   thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
 
-  // Load threshold (Firebase → Local → Default)
+  /* ===== LOAD THRESHOLD (Firebase → Local → Default) ===== */
   onValue(thresholdRef, snap => {
-    thresholdDays = snap.exists() ? Number(snap.val()) : Number(localStorage.getItem("nearExpiryDays")) || 7;
+    if (snap.exists()) {
+      thresholdDays = Number(snap.val());
+    } else {
+      thresholdDays = Number(localStorage.getItem("nearExpiryDays")) || 7;
+      set(thresholdRef, thresholdDays); // create once
+    }
+
     nearDaysInput.value = thresholdDays;
     localStorage.setItem("nearExpiryDays", thresholdDays);
-    if (!snap.exists()) set(thresholdRef, thresholdDays);
+    renderProducts();
   });
 
-  // Load products once, keep in memory
+  /* ===== LOAD PRODUCTS ===== */
   onValue(productsRef, snap => {
     allProducts = snap.exists() ? snap.val() : {};
     renderProducts();
   });
 });
 
-/* ====== SAVE PRODUCT ====== */
+/* ================= SAVE PRODUCT ================= */
 binForm.addEventListener("submit", e => {
   e.preventDefault();
-  if (!productsRef) return alert("Please wait, user not ready.");
+  if (!productsRef) return;
 
-  const data = {
+  const product = {
     name: nameInput.value.trim(),
     qty: Number(qtyInput.value),
     batch: batchInput.value.trim() || "-",
     expiry: expiryInput.value,
-    handled: false
+    handled: false,
+    createdAt: Date.now()
   };
 
-  push(productsRef, data)
-    .then(() => {
-      binForm.reset();
-      successMsg.classList.remove("hidden");
-      setTimeout(() => successMsg.classList.add("hidden"), 2500);
-    })
-    .catch(err => alert("Firebase error: " + err.message));
+  push(productsRef, product).then(() => {
+    binForm.reset();
+    successMsg.classList.remove("hidden");
+    setTimeout(() => successMsg.classList.add("hidden"), 2000);
+  });
 });
 
-/* ====== THRESHOLD INPUT ====== */
-nearDaysInput.addEventListener("input", () => {
+/* ================= THRESHOLD INPUT ================= */
+nearDaysInput.addEventListener("change", () => {
   const val = Number(nearDaysInput.value);
   if (isNaN(val) || val < 0) return;
 
   thresholdDays = val;
+
   localStorage.setItem("nearExpiryDays", val);
-  if (thresholdRef) set(thresholdRef, val);
+
+  if (thresholdRef) {
+    set(thresholdRef, val); // MUST be primitive, not object
+  }
+
   renderProducts();
 });
 
-/* ====== RENDER PRODUCTS ====== */
+/* ================= RENDER ================= */
 function renderProducts() {
   cards.innerHTML = "";
+
   let total = 0, near = 0, expired = 0;
-  const filter = searchInput.value.toLowerCase();
   const today = new Date(); today.setHours(0,0,0,0);
+  const filter = searchInput.value.toLowerCase();
 
   const entries = Object.entries(allProducts);
+
   if (!entries.length) {
     empty.classList.remove("hidden");
     totalEl.textContent = nearEl.textContent = expiredEl.textContent = 0;
@@ -274,7 +287,6 @@ function renderProducts() {
   }
 
   empty.classList.add("hidden");
-
   let alertPlayed = false;
 
   entries.forEach(([id, p]) => {
@@ -282,14 +294,23 @@ function renderProducts() {
 
     total++;
     const exp = new Date(p.expiry); exp.setHours(0,0,0,0);
-    const diff = Math.ceil((exp - today)/86400000);
+    const diff = Math.ceil((exp - today) / 86400000);
 
     let status = "OK", color = "border-gray-300";
-    if (diff < 0) { status="EXPIRED"; color="border-red-500"; expired++; }
-    else if (diff <= thresholdDays) { status="NEAR EXPIRY"; color="border-yellow-500"; near++; }
+
+    if (diff < 0) {
+      status = "EXPIRED";
+      color = "border-red-500";
+      expired++;
+    } else if (diff <= thresholdDays) {
+      status = "NEAR EXPIRY";
+      color = "border-yellow-500";
+      near++;
+    }
 
     const card = document.createElement("div");
     card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow ${p.handled ? "handled" : ""}`;
+
     card.innerHTML = `
       <table class="w-full text-sm">
         <tr><td class="font-semibold">Product</td><td>${p.name}</td></tr>
@@ -301,10 +322,11 @@ function renderProducts() {
     `;
 
     const actions = document.createElement("div");
-    actions.className="mt-4 grid grid-cols-3 gap-2 no-print";
+    actions.className = "mt-4 grid grid-cols-3 gap-2 no-print";
 
     const editBtn = document.createElement("button");
-    editBtn.className="border py-1 rounded text-sm"; editBtn.textContent="Edit";
+    editBtn.textContent = "Edit";
+    editBtn.className = "border py-1 rounded text-sm";
     editBtn.onclick = () => {
       update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), {
         name: prompt("Product Name", p.name) || p.name,
@@ -315,20 +337,25 @@ function renderProducts() {
     };
 
     const markBtn = document.createElement("button");
-    markBtn.className="bg-green-600 text-white py-1 rounded text-sm";
     markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
-    markBtn.onclick = () => update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), { handled: !p.handled });
+    markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
+    markBtn.onclick = () =>
+      update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), { handled: !p.handled });
 
-    const deleteBtn = document.createElement("button");
-    deleteBtn.className="bg-red-700 text-white py-1 rounded text-sm";
-    deleteBtn.textContent = "Delete";
-    deleteBtn.onclick = () => { if(confirm("Delete this product?")) remove(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`)); };
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Delete";
+    delBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
+    delBtn.onclick = () => confirm("Delete this product?") &&
+      remove(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`));
 
-    actions.append(editBtn, markBtn, deleteBtn);
+    actions.append(editBtn, markBtn, delBtn);
     card.appendChild(actions);
     cards.appendChild(card);
 
-    if (!alertPlayed && (near>0 || expired>0)) { alertSound.play().catch(()=>{}); alertPlayed=true; }
+    if (!alertPlayed && (near > 0 || expired > 0)) {
+      alertSound.play().catch(()=>{});
+      alertPlayed = true;
+    }
   });
 
   totalEl.textContent = total;
@@ -336,9 +363,8 @@ function renderProducts() {
   expiredEl.textContent = expired;
 }
 
-/* ====== SEARCH ====== */
+/* ================= SEARCH ================= */
 searchInput.addEventListener("input", renderProducts);
 </script>
-
 </body>
 </html>
