@@ -3,15 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Expiry Product | Inventory Control</title>
+<title>Expiry Stock | Inventory Control</title>
 
+<!-- Tailwind Config -->
 <script>
 tailwind = {
   config: {
     theme: {
       extend: {
         colors: { 
-          primary: '#16a34a', // green
+          primary: '#16a34a',
           primaryLight: '#d1fae5',
           bgGradientStart: '#e6f5ec',
           bgGradientEnd: '#d1fae5'
@@ -23,55 +24,20 @@ tailwind = {
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
 
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
-body {
-  font-family: system-ui, -apple-system;
-  background: linear-gradient(135deg, #e6f5ec 0%, #d1fae5 100%);
-}
-
-header {
-  background: linear-gradient(to right, #b91c1c, #f87171); /* red header gradient */
-  color: white;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-}
-
-header h1 {
-  text-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-}
-
-header p {
-  color: #ffe4e6;
-}
-
-.bin-card {
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.bin-card:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-}
-
-.bin-card.handled {
-  opacity: 0.6;
-}
-
-input, button {
-  transition: all 0.2s;
-}
-
-input:focus {
-  outline: none;
-  border-color: #b91c1c;      /* deep red */
-  background-color: #fff0f0;  /* very light red/white effect */
-  box-shadow: 0 0 8px rgba(185,28,28,0.5); /* subtle red glow */
-}
-
-button:hover {
-  opacity: 0.9;
-}
-
-/* PRINT STYLES */
+body { font-family: system-ui, -apple-system; background: linear-gradient(135deg, #e6f5ec 0%, #d1fae5 100%); }
+header { background: linear-gradient(to right, #b91c1c, #f87171); color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+header h1 { text-shadow: 1px 1px 3px rgba(0,0,0,0.3); }
+header p { color: #ffe4e6; }
+.bin-card { transition: transform 0.2s, box-shadow 0.2s; }
+.bin-card:hover { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,0.15); }
+.bin-card.handled { opacity: 0.6; }
+input, button { transition: all 0.2s; }
+input:focus { outline: none; border-color: #b91c1c; background-color: #fff0f0; box-shadow: 0 0 8px rgba(185,28,28,0.5); }
+button:hover { opacity: 0.9; }
 @media print {
   header, .no-print { display: none !important; }
   body { background: white; }
@@ -84,13 +50,11 @@ button:hover {
 <header class="border-b py-5">
   <div class="max-w-7xl mx-auto px-6 flex justify-between items-center">
     <div>
-      <h1 class="text-2xl md:text-3xl font-bold">EXPIRY BIN CARD REGISTER</h1>
+      <h1 class="text-2xl md:text-3xl font-bold">EXPIRY STOCK REGISTER</h1>
       <p class="text-sm md:text-base mt-1">Inventory Expiry Monitoring</p>
     </div>
     <div class="flex gap-3 items-center no-print">
-      <button onclick="window.print()" class="bg-green-600 text-white px-4 py-2 rounded shadow font-semibold hover:bg-green-700">
-        Print
-      </button>
+      <button onclick="window.print()" class="bg-green-600 text-white px-4 py-2 rounded shadow font-semibold hover:bg-green-700">Print</button>
       <a href="index.html" class="underline text-white font-medium hover:text-gray-100">Dashboard</a>
     </div>
   </div>
@@ -98,35 +62,32 @@ button:hover {
 
 <main class="max-w-7xl mx-auto px-6 py-8">
 
-<!-- FORM -->
+<!-- Record Stock -->
 <section class="bg-white border rounded-xl mb-6 shadow-lg p-5 no-print">
   <div class="border-b border-gray-200 pb-3 mb-3">
-    <h2 class="text-xl font-bold text-green-700">Record New Product</h2>
-    <p class="text-sm text-gray-500">Enter product details as labeled</p>
+    <h2 class="text-xl font-bold text-green-700">Record New Stock</h2>
+    <p class="text-sm text-gray-500">Enter stock details as labeled</p>
   </div>
-
-  <form id="binForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
-    <input id="name" required placeholder="Product Name" class="border px-3 py-2 rounded text-sm shadow-sm">
+  <form id="stockForm" class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <input id="name" required placeholder="Stock Name" class="border px-3 py-2 rounded text-sm shadow-sm">
     <input id="qty" type="number" required placeholder="Qty" class="border px-3 py-2 rounded text-sm shadow-sm">
     <input id="batch" placeholder="Batch No" class="border px-3 py-2 rounded text-sm shadow-sm">
     <input id="expiry" type="date" required class="border px-3 py-2 rounded text-sm shadow-sm">
-    <button type="submit" class="bg-green-600 text-white rounded text-sm font-semibold shadow hover:bg-green-700">
-      Save Record
-    </button>
+    <button type="submit" class="bg-green-600 text-white rounded text-sm font-semibold shadow hover:bg-green-700">Save Record</button>
   </form>
-  <p id="successMsg" class="text-green-600 text-sm mt-2 hidden">✅ Product added successfully!</p>
+  <p id="successMsg" class="text-green-600 text-sm mt-2 hidden">✅ Stock added successfully!</p>
 </section>
 
-<!-- SEARCH -->
+<!-- Search -->
 <section class="mb-6">
-  <input type="text" id="searchInput" placeholder="Search products..." class="w-full border px-3 py-2 rounded text-sm shadow-sm focus:ring-1 focus:ring-green-600">
+  <input type="text" id="searchInput" placeholder="Search stocks..." class="w-full border px-3 py-2 rounded text-sm shadow-sm focus:ring-1 focus:ring-green-600">
 </section>
 
-<!-- STATS -->
+<!-- Stock Summary -->
 <section class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 text-center">
   <div class="bg-white border rounded-xl p-6 shadow hover:scale-105 transition-transform">
     <p class="text-xs text-gray-500">TOTAL ITEMS</p>
-    <p id="totalProducts" class="text-3xl font-bold text-green-700">0</p>
+    <p id="totalStocks" class="text-3xl font-bold text-green-700">0</p>
   </div>
   <div class="bg-yellow-50 border border-yellow-300 rounded-xl p-6 shadow hover:scale-105 transition-transform">
     <p class="text-xs">NEAR EXPIRY</p>
@@ -138,13 +99,17 @@ button:hover {
   </div>
 </section>
 
-<!-- BIN CARDS -->
+<!-- Chart -->
+<section class="bg-white dark:bg-gray-700 border rounded-xl mb-6 shadow-lg p-5">
+  <h2 class="text-xl font-bold text-green-700 dark:text-green-400 mb-4">Stock Status Chart</h2>
+  <canvas id="stockChart" class="w-full h-64"></canvas>
+</section>
+
+<!-- Stock Records -->
 <section>
-  <h2 class="text-xl font-bold mb-4 text-green-700">Bin Card Records</h2>
+  <h2 class="text-xl font-bold mb-4 text-green-700">Stock Records</h2>
   <div id="cards" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
-  <div id="empty" class="text-center py-12 text-gray-500 hidden">
-    No near-expiry or expired products
-  </div>
+  <div id="empty" class="text-center py-12 text-gray-500 hidden">No near-expiry or expired stocks</div>
   <label class="text-sm font-semibold">Near expiry threshold (days)</label>
   <input type="number" id="nearDaysInput" value="7" class="border px-2 py-1 rounded text-sm">
 </section>
@@ -154,21 +119,13 @@ button:hover {
 <audio id="alertSound">
   <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
 </audio>
+
 <script type="module">
-  /* ================= IMPORTS ================= */
-  /* ================= IMPORTS ================= */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getDatabase,
-  ref,
-  push,
-  onValue,
-  update,
-  remove
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, push, onValue, update, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-/* ================= FIREBASE CONFIG ================= */
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
   authDomain: "mcode-sales.firebaseapp.com",
@@ -178,13 +135,12 @@ const firebaseConfig = {
   messagingSenderId: "823876737976",
   appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
 };
-
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 const auth = getAuth(app);
 
-/* ================= ELEMENTS ================= */
-const binForm = document.getElementById("binForm");
+/* ELEMENTS */
+const stockForm = document.getElementById("stockForm");
 const nameInput = document.getElementById("name");
 const qtyInput = document.getElementById("qty");
 const batchInput = document.getElementById("batch");
@@ -192,58 +148,53 @@ const expiryInput = document.getElementById("expiry");
 const successMsg = document.getElementById("successMsg");
 const cards = document.getElementById("cards");
 const empty = document.getElementById("empty");
-const totalEl = document.getElementById("totalProducts");
+const totalEl = document.getElementById("totalStocks");
 const nearEl = document.getElementById("nearExpiry");
 const expiredEl = document.getElementById("expired");
 const alertSound = document.getElementById("alertSound");
 const searchInput = document.getElementById("searchInput");
 const nearDaysInput = document.getElementById("nearDaysInput");
 
-/* ================= STATE ================= */
+/* CHART */
+const ctx = document.getElementById("stockChart").getContext("2d");
+let stockChart = null;
+
+/* STATE */
 let currentUser = null;
 let thresholdDaysRef = null;
-let productsRef = null;
-
+let stocksRef = null;
 let thresholdDays = 7;
-let allProducts = {};
+let allStocks = {};
 let lastAlertKey = "";
 
-/* ================= AUTH ================= */
+/* AUTH */
 onAuthStateChanged(auth, user => {
-  if (!user) {
-    alert("Please login first");
-    window.location.href = "firebase login.html";
-    return;
-  }
-  
+  if (!user) { alert("Please login first"); window.location.href="firebase login.html"; return; }
   currentUser = user;
   const uid = user.uid;
-  
-  // Safe paths: only individual fields
+
   thresholdDaysRef = ref(db, `users/${uid}/settings/thresholdDays`);
-  productsRef = ref(db, `users/${uid}/settings/expiryProducts`);
-  
-  // Load thresholdDays
+  stocksRef = ref(db, `users/${uid}/settings/expiryStocks`);
+
   onValue(thresholdDaysRef, snap => {
     const val = snap.val();
-    if (val != null) thresholdDays = Number(val);
+    if(val != null) thresholdDays = Number(val);
     nearDaysInput.value = thresholdDays;
-    renderProducts(); // always refresh after threshold changes
+    renderStocks();
   });
-  
-  // Load products
-  onValue(productsRef, snap => {
-    allProducts = snap.val() || {};
-    renderProducts();
+
+  onValue(stocksRef, snap => {
+    allStocks = snap.val() || {};
+    renderStocks();
   });
 });
 
-/* ================= ADD PRODUCT ================= */
-binForm.addEventListener("submit", e => {
+/* ADD STOCK */
+stockForm.addEventListener("submit", e => {
   e.preventDefault();
-  if (!productsRef) return;
-  
-  const product = {
+  if(!stocksRef) return;
+
+  const stock = {
     name: nameInput.value.trim(),
     qty: Number(qtyInput.value),
     batch: batchInput.value.trim() || "-",
@@ -251,125 +202,106 @@ binForm.addEventListener("submit", e => {
     handled: false,
     createdAt: Date.now()
   };
-  
-  // Use push() to avoid overwriting any existing products
-  push(productsRef, product).then(() => {
-    binForm.reset();
+
+  push(stocksRef, stock).then(()=>{
+    stockForm.reset();
     successMsg.classList.remove("hidden");
-    setTimeout(() => successMsg.classList.add("hidden"), 2000);
+    setTimeout(()=> successMsg.classList.add("hidden"), 2000);
   });
 });
 
-/* ================= THRESHOLD ================= */
-nearDaysInput.addEventListener("change", () => {
+/* THRESHOLD */
+nearDaysInput.addEventListener("change", ()=>{
   const val = Number(nearDaysInput.value);
-  if (isNaN(val) || val < 0) return;
-  
+  if(isNaN(val) || val<0) return;
   thresholdDays = val;
-  // Only update the field, do NOT touch expiryProducts
-  update(ref(db, `users/${currentUser.uid}/settings`), { thresholdDays: val });
-  renderProducts();
+  update(ref(db, `users/${currentUser.uid}/settings`), {thresholdDays: val});
+  renderStocks();
 });
 
-/* ================= RENDER ================= */
-function renderProducts() {
+/* RENDER STOCKS */
+function renderStocks(){
   cards.innerHTML = "";
-  
-  let total = 0;
-  let near = 0;
-  let expired = 0;
-  
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
+  let total=0, near=0, expired=0;
+  const today = new Date(); today.setHours(0,0,0,0);
   const filter = searchInput.value.toLowerCase();
-  const entries = Object.entries(allProducts);
-  
-  if (!entries.length) {
-    empty.classList.remove("hidden");
-    totalEl.textContent = "0";
-    nearEl.textContent = "0";
-    expiredEl.textContent = "0";
-    return;
-  }
-  
+  const entries = Object.entries(allStocks);
+  if(!entries.length){ empty.classList.remove("hidden"); totalEl.textContent="0"; nearEl.textContent="0"; expiredEl.textContent="0"; updateChart(0,0,0); return; }
   empty.classList.add("hidden");
-  let shouldAlert = false;
-  
-  entries.forEach(([id, p]) => {
-    if (!p) return;
-    if (filter && !p.name.toLowerCase().includes(filter)) return;
-    
+  let shouldAlert=false;
+
+  entries.forEach(([id,s])=>{
+    if(!s) return;
+    if(filter && !s.name.toLowerCase().includes(filter)) return;
     total++;
-    
-    const exp = new Date(p.expiry);
-    exp.setHours(0, 0, 0, 0);
-    const diff = Math.ceil((exp - today) / 86400000);
-    
-    let status = "OK";
-    let color = "border-gray-300";
-    
-    if (diff < 0) {
-      status = "EXPIRED";
-      color = "border-red-500";
-      expired++;
-      shouldAlert = true;
-    } else if (diff <= thresholdDays) {
-      status = "NEAR EXPIRY";
-      color = "border-yellow-500";
-      near++;
-      shouldAlert = true;
-    }
-    
-    const card = document.createElement("div");
-    card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow`;
-    
-    card.innerHTML = `
+    const exp=new Date(s.expiry); exp.setHours(0,0,0,0);
+    const diff = Math.ceil((exp-today)/86400000);
+
+    let status="OK", color="border-gray-300";
+    if(diff<0){ status="EXPIRED"; color="border-red-500"; expired++; shouldAlert=true; }
+    else if(diff<=thresholdDays){ status="NEAR EXPIRY"; color="border-yellow-500"; near++; shouldAlert=true; }
+
+    const card=document.createElement("div");
+    card.className=`bin-card bg-white border-l-4 ${color} p-5 rounded shadow`;
+    card.innerHTML=`
       <table class="w-full text-sm">
-        <tr><td class="font-semibold">Product</td><td>${p.name}</td></tr>
-        <tr><td class="font-semibold">Qty</td><td>${p.qty}</td></tr>
-        <tr><td class="font-semibold">Batch</td><td>${p.batch}</td></tr>
-        <tr><td class="font-semibold">Expiry</td><td>${p.expiry}</td></tr>
+        <tr><td class="font-semibold">Stock</td><td>${s.name}</td></tr>
+        <tr><td class="font-semibold">Qty</td><td>${s.qty}</td></tr>
+        <tr><td class="font-semibold">Batch</td><td>${s.batch}</td></tr>
+        <tr><td class="font-semibold">Expiry</td><td>${s.expiry}</td></tr>
         <tr><td class="font-semibold">Status</td><td class="font-bold">${status}</td></tr>
       </table>
     `;
-    
-    const actions = document.createElement("div");
-    actions.className = "mt-4 grid grid-cols-3 gap-2 no-print";
-    
-    const markBtn = document.createElement("button");
-    markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
-    markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
-    markBtn.onclick = () => update(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`), {
-      handled: !p.handled
-    });
-    
-    const delBtn = document.createElement("button");
-    delBtn.textContent = "Delete";
-    delBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
-    delBtn.onclick = () => confirm("Delete this product?") &&
-      remove(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`));
-    
+    const actions=document.createElement("div");
+    actions.className="mt-4 grid grid-cols-3 gap-2 no-print";
+    const markBtn=document.createElement("button");
+    markBtn.textContent = s.handled ? "Unmark":"Mark Handled";
+    markBtn.className="bg-green-600 text-white py-1 rounded text-sm";
+    markBtn.onclick=()=>update(ref(db, `users/${currentUser.uid}/settings/expiryStocks/${id}`), {handled: !s.handled});
+    const delBtn=document.createElement("button");
+    delBtn.textContent="Delete";
+    delBtn.className="bg-red-700 text-white py-1 rounded text-sm";
+    delBtn.onclick=()=> confirm("Delete this stock?") && remove(ref(db, `users/${currentUser.uid}/settings/expiryStocks/${id}`));
     actions.append(markBtn, delBtn);
     card.appendChild(actions);
     cards.appendChild(card);
   });
-  
-  totalEl.textContent = total;
-  nearEl.textContent = near;
-  expiredEl.textContent = expired;
-  
-  // Alert sound
-  const alertKey = `${near}-${expired}`;
-  if (shouldAlert && alertKey !== lastAlertKey) {
-    alertSound.currentTime = 0;
-    alertSound.play().catch(() => {});
-    lastAlertKey = alertKey;
-  }
+
+  totalEl.textContent=total; nearEl.textContent=near; expiredEl.textContent=expired;
+
+  const alertKey=`${near}-${expired}`;
+  if(shouldAlert && alertKey!==lastAlertKey){ alertSound.currentTime=0; alertSound.play().catch(()=>{}); lastAlertKey=alertKey; }
+
+  updateChart(total, near, expired);
 }
 
-/* ================= SEARCH ================= */
-searchInput.addEventListener("input", renderProducts);
+/* SEARCH */
+searchInput.addEventListener("input", renderStocks);
+
+/* CHART UPDATE */
+function updateChart(total, near, expired){
+  if(!stockChart){
+    stockChart = new Chart(ctx, {
+      type:'doughnut',
+      data:{
+        labels:['Total Stocks','Near Expiry','Expired'],
+        datasets:[{
+          label:'Stocks',
+          data:[total, near, expired],
+          backgroundColor:['#16a34a','#facc15','#dc2626']
+        }]
+      },
+      options:{
+        responsive:true,
+        plugins:{legend:{position:'bottom'}}
+      }
+    });
+  } else {
+    stockChart.data.datasets[0].data=[total, near, expired];
+    stockChart.update();
+  }
+}
 </script>
+
 </body>
 </html>
