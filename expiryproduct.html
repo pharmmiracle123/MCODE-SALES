@@ -209,9 +209,8 @@ onAuthStateChanged(auth, user => {
   currentUser = user;
   const uid = user.uid;
 
-  productsRef = ref(db, `users/${uid}/expiryProducts`);
-  thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
-
+  productsRef = ref(db, `users/${uid}/settings/expiryProducts`);
+thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
   /* ===== LOAD THRESHOLD (Firebase → Local → Default) ===== */
   onValue(thresholdRef, snap => {
     if (snap.exists()) {
