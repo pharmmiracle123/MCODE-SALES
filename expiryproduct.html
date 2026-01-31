@@ -156,175 +156,175 @@ button:hover {
 </audio>
 <script type="module">
   /* ================= IMPORTS ================= */
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import {
-    getDatabase,
-    ref,
-    push,
-    onValue,
-    update,
-    remove
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-  import {
-    getAuth,
-    onAuthStateChanged
-  } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+  /* ================= IMPORTS ================= */
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  push,
+  onValue,
+  update,
+  remove
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+/* ================= FIREBASE CONFIG ================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
+  authDomain: "mcode-sales.firebaseapp.com",
+  databaseURL: "https://mcode-sales-default-rtdb.firebaseio.com",
+  projectId: "mcode-sales",
+  storageBucket: "mcode-sales.appspot.com",
+  messagingSenderId: "823876737976",
+  appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+const auth = getAuth(app);
+
+/* ================= ELEMENTS ================= */
+const binForm = document.getElementById("binForm");
+const nameInput = document.getElementById("name");
+const qtyInput = document.getElementById("qty");
+const batchInput = document.getElementById("batch");
+const expiryInput = document.getElementById("expiry");
+const successMsg = document.getElementById("successMsg");
+const cards = document.getElementById("cards");
+const empty = document.getElementById("empty");
+const totalEl = document.getElementById("totalProducts");
+const nearEl = document.getElementById("nearExpiry");
+const expiredEl = document.getElementById("expired");
+const alertSound = document.getElementById("alertSound");
+const searchInput = document.getElementById("searchInput");
+const nearDaysInput = document.getElementById("nearDaysInput");
+
+/* ================= STATE ================= */
+let currentUser = null;
+let thresholdDaysRef = null;
+let productsRef = null;
+
+let thresholdDays = 7;
+let allProducts = {};
+let lastAlertKey = "";
+
+/* ================= AUTH ================= */
+onAuthStateChanged(auth, user => {
+  if (!user) {
+    alert("Please login first");
+    window.location.href = "firebase login.html";
+    return;
+  }
   
-  /* ================= FIREBASE CONFIG ================= */
-  const firebaseConfig = {
-    apiKey: "AIzaSyDC49oGcE3EAXSjjJ1mstpowbpjaaY8PTc",
-    authDomain: "mcode-sales.firebaseapp.com",
-    databaseURL: "https://mcode-sales-default-rtdb.firebaseio.com",
-    projectId: "mcode-sales",
-    storageBucket: "mcode-sales.appspot.com",
-    messagingSenderId: "823876737976",
-    appId: "1:823876737976:web:45245a0fef4f5094dd0d4d"
-  };
+  currentUser = user;
+  const uid = user.uid;
   
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const auth = getAuth(app);
+  // Safe paths: only individual fields
+  thresholdDaysRef = ref(db, `users/${uid}/settings/thresholdDays`);
+  productsRef = ref(db, `users/${uid}/settings/expiryProducts`);
   
-  /* ================= ELEMENTS ================= */
-  const binForm = document.getElementById("binForm");
-  const nameInput = document.getElementById("name");
-  const qtyInput = document.getElementById("qty");
-  const batchInput = document.getElementById("batch");
-  const expiryInput = document.getElementById("expiry");
-  const successMsg = document.getElementById("successMsg");
-  const cards = document.getElementById("cards");
-  const empty = document.getElementById("empty");
-  const totalEl = document.getElementById("totalProducts");
-  const nearEl = document.getElementById("nearExpiry");
-  const expiredEl = document.getElementById("expired");
-  const alertSound = document.getElementById("alertSound");
-  const searchInput = document.getElementById("searchInput");
-  const nearDaysInput = document.getElementById("nearDaysInput");
-  
-  /* ================= STATE ================= */
-  let currentUser = null;
-  let settingsRef = null;
-  let productsRef = null;
-  
-  let thresholdDays = 7;
-  let allProducts = {};
-  let lastAlertKey = ""; // prevents alert spam
-  
-  /* ================= AUTH ================= */
-  onAuthStateChanged(auth, user => {
-    if (!user) {
-      alert("Please login first");
-      window.location.href = "firebase login.html";
-      return;
-    }
-    
-    currentUser = user;
-    const uid = user.uid;
-    
-    settingsRef = ref(db, `users/${uid}/settings`);
-    productsRef = ref(db, `users/${uid}/settings/expiryProducts`);
-    
-    /* ===== SETTINGS + PRODUCTS LISTENER ===== */
-    onValue(settingsRef, snap => {
-      const data = snap.val() || {};
-      
-      thresholdDays = Number(data.thresholdDays ?? 7);
-      allProducts = data.expiryProducts || {};
-      
-      nearDaysInput.value = thresholdDays;
-      renderProducts();
-    });
+  // Load thresholdDays
+  onValue(thresholdDaysRef, snap => {
+    const val = snap.val();
+    if (val != null) thresholdDays = Number(val);
+    nearDaysInput.value = thresholdDays;
+    renderProducts(); // always refresh after threshold changes
   });
   
-  /* ================= ADD PRODUCT ================= */
-  binForm.addEventListener("submit", e => {
-    e.preventDefault();
-    if (!productsRef) return;
-    
-    const product = {
-      name: nameInput.value.trim(),
-      qty: Number(qtyInput.value),
-      batch: batchInput.value.trim() || "-",
-      expiry: expiryInput.value,
-      handled: false,
-      createdAt: Date.now()
-    };
-    
-    push(productsRef, product).then(() => {
-      binForm.reset();
-      successMsg.classList.remove("hidden");
-      setTimeout(() => successMsg.classList.add("hidden"), 2000);
-    });
-  });
-  
-  /* ================= THRESHOLD ================= */
-  nearDaysInput.addEventListener("change", () => {
-    const val = Number(nearDaysInput.value);
-    if (isNaN(val) || val < 0) return;
-    
-    thresholdDays = val;
-    
-    update(settingsRef, {
-      thresholdDays: val
-    });
-    
+  // Load products
+  onValue(productsRef, snap => {
+    allProducts = snap.val() || {};
     renderProducts();
   });
+});
+
+/* ================= ADD PRODUCT ================= */
+binForm.addEventListener("submit", e => {
+  e.preventDefault();
+  if (!productsRef) return;
   
-  /* ================= RENDER ================= */
-  function renderProducts() {
-    cards.innerHTML = "";
+  const product = {
+    name: nameInput.value.trim(),
+    qty: Number(qtyInput.value),
+    batch: batchInput.value.trim() || "-",
+    expiry: expiryInput.value,
+    handled: false,
+    createdAt: Date.now()
+  };
+  
+  // Use push() to avoid overwriting any existing products
+  push(productsRef, product).then(() => {
+    binForm.reset();
+    successMsg.classList.remove("hidden");
+    setTimeout(() => successMsg.classList.add("hidden"), 2000);
+  });
+});
+
+/* ================= THRESHOLD ================= */
+nearDaysInput.addEventListener("change", () => {
+  const val = Number(nearDaysInput.value);
+  if (isNaN(val) || val < 0) return;
+  
+  thresholdDays = val;
+  // Only update the field, do NOT touch expiryProducts
+  update(ref(db, `users/${currentUser.uid}/settings`), { thresholdDays: val });
+  renderProducts();
+});
+
+/* ================= RENDER ================= */
+function renderProducts() {
+  cards.innerHTML = "";
+  
+  let total = 0;
+  let near = 0;
+  let expired = 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const filter = searchInput.value.toLowerCase();
+  const entries = Object.entries(allProducts);
+  
+  if (!entries.length) {
+    empty.classList.remove("hidden");
+    totalEl.textContent = "0";
+    nearEl.textContent = "0";
+    expiredEl.textContent = "0";
+    return;
+  }
+  
+  empty.classList.add("hidden");
+  let shouldAlert = false;
+  
+  entries.forEach(([id, p]) => {
+    if (!p) return;
+    if (filter && !p.name.toLowerCase().includes(filter)) return;
     
-    let total = 0;
-    let near = 0;
-    let expired = 0;
+    total++;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const exp = new Date(p.expiry);
+    exp.setHours(0, 0, 0, 0);
+    const diff = Math.ceil((exp - today) / 86400000);
     
-    const filter = searchInput.value.toLowerCase();
-    const entries = Object.entries(allProducts);
+    let status = "OK";
+    let color = "border-gray-300";
     
-    if (!entries.length) {
-      empty.classList.remove("hidden");
-      totalEl.textContent = "0";
-      nearEl.textContent = "0";
-      expiredEl.textContent = "0";
-      return;
+    if (diff < 0) {
+      status = "EXPIRED";
+      color = "border-red-500";
+      expired++;
+      shouldAlert = true;
+    } else if (diff <= thresholdDays) {
+      status = "NEAR EXPIRY";
+      color = "border-yellow-500";
+      near++;
+      shouldAlert = true;
     }
     
-    empty.classList.add("hidden");
+    const card = document.createElement("div");
+    card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow`;
     
-    let shouldAlert = false;
-    
-    entries.forEach(([id, p]) => {
-      if (filter && !p.name.toLowerCase().includes(filter)) return;
-      
-      total++;
-      
-      const exp = new Date(p.expiry);
-      exp.setHours(0, 0, 0, 0);
-      const diff = Math.ceil((exp - today) / 86400000);
-      
-      let status = "OK";
-      let color = "border-gray-300";
-      
-      if (diff < 0) {
-        status = "EXPIRED";
-        color = "border-red-500";
-        expired++;
-        shouldAlert = true;
-      } else if (diff <= thresholdDays) {
-        status = "NEAR EXPIRY";
-        color = "border-yellow-500";
-        near++;
-        shouldAlert = true;
-      }
-      
-      const card = document.createElement("div");
-      card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow`;
-      
-      card.innerHTML = `
+    card.innerHTML = `
       <table class="w-full text-sm">
         <tr><td class="font-semibold">Product</td><td>${p.name}</td></tr>
         <tr><td class="font-semibold">Qty</td><td>${p.qty}</td></tr>
@@ -333,46 +333,43 @@ button:hover {
         <tr><td class="font-semibold">Status</td><td class="font-bold">${status}</td></tr>
       </table>
     `;
-      
-      const actions = document.createElement("div");
-      actions.className = "mt-4 grid grid-cols-3 gap-2 no-print";
-      
-      const markBtn = document.createElement("button");
-      markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
-      markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
-      markBtn.onclick = () =>
-        update(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`), {
-          handled: !p.handled
-        });
-      
-      const delBtn = document.createElement("button");
-      delBtn.textContent = "Delete";
-      delBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
-      delBtn.onclick = () =>
-        confirm("Delete this product?") &&
-        remove(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`));
-      
-      actions.append(markBtn, delBtn);
-      card.appendChild(actions);
-      cards.appendChild(card);
+    
+    const actions = document.createElement("div");
+    actions.className = "mt-4 grid grid-cols-3 gap-2 no-print";
+    
+    const markBtn = document.createElement("button");
+    markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
+    markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
+    markBtn.onclick = () => update(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`), {
+      handled: !p.handled
     });
     
-    totalEl.textContent = total;
-    nearEl.textContent = near;
-    expiredEl.textContent = expired;
+    const delBtn = document.createElement("button");
+    delBtn.textContent = "Delete";
+    delBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
+    delBtn.onclick = () => confirm("Delete this product?") &&
+      remove(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`));
     
-    /* ================= ALERT SOUND ================= */
-    const alertKey = `${near}-${expired}`;
-    
-    if (shouldAlert && alertKey !== lastAlertKey) {
-      alertSound.currentTime = 0;
-      alertSound.play().catch(() => {});
-      lastAlertKey = alertKey;
-    }
-  }
+    actions.append(markBtn, delBtn);
+    card.appendChild(actions);
+    cards.appendChild(card);
+  });
   
-  /* ================= SEARCH ================= */
-  searchInput.addEventListener("input", renderProducts);
+  totalEl.textContent = total;
+  nearEl.textContent = near;
+  expiredEl.textContent = expired;
+  
+  // Alert sound
+  const alertKey = `${near}-${expired}`;
+  if (shouldAlert && alertKey !== lastAlertKey) {
+    alertSound.currentTime = 0;
+    alertSound.play().catch(() => {});
+    lastAlertKey = alertKey;
+  }
+}
+
+/* ================= SEARCH ================= */
+searchInput.addEventListener("input", renderProducts);
 </script>
 </body>
 </html>
