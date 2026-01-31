@@ -209,15 +209,17 @@ onAuthStateChanged(auth, user => {
   currentUser = user;
   const uid = user.uid;
 
+  // Products now live inside settings
   productsRef = ref(db, `users/${uid}/settings/expiryProducts`);
-thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
-  /* ===== LOAD THRESHOLD (Firebase → Local → Default) ===== */
+  thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
+
+  // Load threshold from Firebase or local storage
   onValue(thresholdRef, snap => {
     if (snap.exists()) {
       thresholdDays = Number(snap.val());
     } else {
       thresholdDays = Number(localStorage.getItem("nearExpiryDays")) || 7;
-      set(thresholdRef, thresholdDays); // create once
+      set(thresholdRef, thresholdDays); // create threshold once
     }
 
     nearDaysInput.value = thresholdDays;
@@ -225,7 +227,7 @@ thresholdRef = ref(db, `users/${uid}/settings/thresholdDays`);
     renderProducts();
   });
 
-  /* ===== LOAD PRODUCTS ===== */
+  // Load products from Firebase
   onValue(productsRef, snap => {
     allProducts = snap.exists() ? snap.val() : {};
     renderProducts();
@@ -259,17 +261,16 @@ nearDaysInput.addEventListener("change", () => {
   if (isNaN(val) || val < 0) return;
 
   thresholdDays = val;
-
   localStorage.setItem("nearExpiryDays", val);
 
   if (thresholdRef) {
-    set(thresholdRef, val); // MUST be primitive, not object
+    set(thresholdRef, val); // safe, only updates thresholdDays
   }
 
   renderProducts();
 });
 
-/* ================= RENDER ================= */
+/* ================= RENDER PRODUCTS ================= */
 function renderProducts() {
   cards.innerHTML = "";
 
@@ -309,7 +310,6 @@ function renderProducts() {
 
     const card = document.createElement("div");
     card.className = `bin-card bg-white border-l-4 ${color} p-5 rounded shadow ${p.handled ? "handled" : ""}`;
-
     card.innerHTML = `
       <table class="w-full text-sm">
         <tr><td class="font-semibold">Product</td><td>${p.name}</td></tr>
@@ -327,7 +327,7 @@ function renderProducts() {
     editBtn.textContent = "Edit";
     editBtn.className = "border py-1 rounded text-sm";
     editBtn.onclick = () => {
-      update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), {
+      update(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`), {
         name: prompt("Product Name", p.name) || p.name,
         qty: Number(prompt("Qty", p.qty)) || p.qty,
         batch: prompt("Batch", p.batch) || p.batch,
@@ -339,13 +339,13 @@ function renderProducts() {
     markBtn.textContent = p.handled ? "Unmark" : "Mark Handled";
     markBtn.className = "bg-green-600 text-white py-1 rounded text-sm";
     markBtn.onclick = () =>
-      update(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`), { handled: !p.handled });
+      update(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`), { handled: !p.handled });
 
     const delBtn = document.createElement("button");
     delBtn.textContent = "Delete";
     delBtn.className = "bg-red-700 text-white py-1 rounded text-sm";
     delBtn.onclick = () => confirm("Delete this product?") &&
-      remove(ref(db, `users/${currentUser.uid}/expiryProducts/${id}`));
+      remove(ref(db, `users/${currentUser.uid}/settings/expiryProducts/${id}`));
 
     actions.append(editBtn, markBtn, delBtn);
     card.appendChild(actions);
