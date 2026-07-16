@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -898,4 +898,3 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 </script>
 </body>
-</html>
