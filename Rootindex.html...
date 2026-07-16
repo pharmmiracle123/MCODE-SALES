@@ -9,38 +9,36 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 <script src="https://cdn.tailwindcss.com"></script>
+<!-- EmailJS (used for Admin PIN reset emails) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 html { scroll-behavior: smooth; }
 .bottom-nav { box-shadow: 0 -2px 10px rgba(0,0,0,0.08); }
 .hidden-modal { display: none; }
 .fade { transition: all .25s ease; }
 .low-stock { color: red; font-weight: bold; }
+.toast-fade { transition: opacity .3s ease; }
+.spin { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.pin-dot { letter-spacing: .35em; }
 </style>
   <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ef4444">
 </head>
 <body class="bg-gray-50 text-gray-800">
 
-<!-- CLIENT COMPANY NAME -->
-<script>
-let clientCompanyName = "My Company";
-function setCompanyName(){
-  let pass = prompt("Enter password to update company name:");
-  if(pass === "ADMIN123"){
-    let name = prompt("Enter new Company Name:", clientCompanyName);
-    if(name) {
-      clientCompanyName = name;
-      document.getElementById('companyName').innerText = clientCompanyName;
-      saveToFirebase(); // save updated company name
-    }
-  }
-}
-document.addEventListener('DOMContentLoaded',()=>document.getElementById('companyName').innerText=clientCompanyName);
-</script>
+<!-- LOADING OVERLAY -->
+<div id="loadingOverlay" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[200]">
+  <div class="w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full spin mb-3"></div>
+  <div class="text-red-600 font-bold text-lg">Loading MCODE...</div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div id="toastContainer" class="fixed top-20 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 items-center"></div>
 
 <header class="fixed top-0 left-0 w-full z-40 bg-white shadow">
   <div class="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-    <h1 onclick="setCompanyName()" class="text-2xl font-bold text-red-600 cursor-pointer" id="companyName"></h1>
+    <h1 onclick="handleCompanyNameClick()" class="text-2xl font-bold text-red-600 cursor-pointer" id="companyName"></h1>
      <div class="flex items-center gap-2 shrink-0">
         <span id="userEmail" class="hidden sm:block text-gray-400 text-sm truncate max-w-[140px]"></span>
         <button
@@ -53,8 +51,6 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
     </div>
   </div>
 </header>
-<!-- MOBILE NAV -->
-<!-- DESKTOP NAV -->
 <!-- DESKTOP NAV (LOOKS LIKE MOBILE NAV, FULL WIDTH) -->
 <nav class="hidden md:flex fixed top-16 left-0 w-full bg-white shadow z-30">
   <div class="flex justify-around w-full py-2 text-gray-600">
@@ -74,7 +70,7 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
       <span class="text-sm">Admin</span>
     </a>
     
-    <a href="expiryproduct.htm" class="flex flex-col items-center">
+    <a href="expiryproduct.html" class="flex flex-col items-center">
      ⚠️
       <span class="text-sm">Subscription</span>
     </a>
@@ -117,10 +113,13 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
 <!-- ADMIN SECTION -->
 <section id="admin" class="py-16 bg-gray-200 hidden">
   <div class="max-w-6xl mx-auto px-6">
-    <h2 class="text-3xl font-bold mb-6">Admin Panel — Stock Manager</h2>
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-3xl font-bold">Admin Panel — Stock Manager</h2>
+      <button onclick="showPinModal('changePin_verify')" class="bg-gray-700 text-white px-3 py-2 rounded text-sm">🔒 Change Admin PIN</button>
+    </div>
     <div id="adminList" class="space-y-2 text-gray-800"></div>
   </div>
-  <div id="adminStock" class="space-y-4">
+  <div id="adminStock" class="max-w-6xl mx-auto px-6 space-y-4">
   <h3 class="text-xl font-bold mb-2">Manage Products</h3>
   <div id="adminProductList"></div>
 </div>
@@ -137,9 +136,11 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
       <div id="historyList" class="space-y-2"></div>
     </div>
   </section>
-  <button onclick="toggleHistory()" class="bg-black text-white px-3 py-1 rounded">
-    View Sales
-  </button>
+  <div class="max-w-6xl mx-auto px-6 pb-8">
+    <button onclick="toggleHistory()" class="bg-black text-white px-3 py-1 rounded">
+      View Sales
+    </button>
+  </div>
 </section>
 
 <!-- CART MODAL -->
@@ -170,6 +171,30 @@ document.addEventListener('DOMContentLoaded',()=>document.getElementById('compan
   </div>
 </div>
 
+<!-- COMPANY NAME MODAL -->
+<div id="companyModal" class="hidden-modal fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="bg-white w-80 rounded-lg p-5 shadow fade">
+    <h3 class="text-lg font-bold mb-3">Update Company Name</h3>
+    <input id="companyNameInput" type="text" class="border p-2 rounded w-full mb-3" placeholder="Company Name">
+    <button id="companySaveBtn" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 rounded">Save</button>
+    <button id="companyCancelBtn" class="w-full py-2 mt-2 rounded border border-gray-300">Cancel</button>
+  </div>
+</div>
+
+<!-- ADMIN PIN MODAL (create / enter / change / forgot / reset) -->
+<div id="pinModal" class="hidden-modal fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+  <div class="bg-white w-80 rounded-lg p-5 shadow fade">
+    <h3 id="pinModalTitle" class="text-lg font-bold mb-1">Admin Access</h3>
+    <p id="pinModalSubtitle" class="text-sm text-gray-500 mb-3"></p>
+    <input id="pinInput1" type="password" inputmode="numeric" maxlength="6" placeholder="PIN" class="pin-dot border p-2 rounded w-full mb-2 text-center text-xl">
+    <input id="pinInput2" type="password" inputmode="numeric" maxlength="6" placeholder="Confirm PIN" class="pin-dot hidden-modal border p-2 rounded w-full mb-2 text-center text-xl">
+    <p id="pinError" class="text-red-600 text-sm mb-2 hidden"></p>
+    <button id="pinSubmitBtn" class="bg-gradient-to-r from-red-500 to-red-700 text-white w-full py-2 rounded">Submit</button>
+    <button id="pinForgotBtn" class="w-full py-2 mt-2 text-sm text-red-600 underline">Forgot PIN?</button>
+    <button id="pinCancelBtn" class="w-full py-2 mt-2 rounded border border-gray-300">Cancel</button>
+  </div>
+</div>
+
 <script>
 /* ==============================
    FIREBASE INIT
@@ -187,16 +212,49 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.database();
-
 auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+/* ==============================
+   EMAILJS INIT — put your own keys here
+============================== */
+emailjs.init("YOUR_EMAILJS_PUBLIC_KEY");
+const EMAILJS_SERVICE_ID = "YOUR_SERVICE_ID";
+const EMAILJS_TEMPLATE_ID = "YOUR_TEMPLATE_ID";
 
 /* =====================================================
    APP STATE
 ===================================================== */
 let userUID = null;
+let clientCompanyName = "My Company";
 let productData = [];
 let cart = [];
 let soldData = [];
+let adminPinHash = null;      // SHA-256 hash of the admin PIN, stored per account
+let resetCodeHash = null;     // SHA-256 hash of the temporary reset code
+let resetCodeExpiry = null;   // timestamp
+let pinFlowState = null;      // 'create' | 'enter' | 'resetCodeEntry' | 'newPinAfterReset' | 'changePin_verify' | 'changePin_new'
+let pendingAdminAction = null;
+
+/* ==============================
+   TOAST NOTIFICATIONS
+============================== */
+function toast(msg, isError=false){
+  const container = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast-fade ${isError?'bg-red-600':'bg-gray-900'} text-white px-4 py-2 rounded-lg shadow-lg text-sm`;
+  el.innerText = msg;
+  container.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; setTimeout(()=>el.remove(),300); }, 2600);
+}
+
+/* ==============================
+   HASHING HELPER
+============================== */
+async function hashPin(pin){
+  const enc = new TextEncoder().encode(pin);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 
 /* ==============================
    AUTH HANDLER
@@ -209,27 +267,201 @@ auth.onAuthStateChanged(async user => {
     await loadFromFirebase();
     renderProducts();
     updateCartUI();
-    
- window.addEventListener("hashchange", () => {
-  if (location.hash === "#admin") {
-    adminGate();
-  }
-});
+    document.getElementById('loadingOverlay').style.display = 'none';
+
+    window.addEventListener("hashchange", () => {
+      if (location.hash === "#admin") {
+        openAdmin({preventDefault(){}});
+      }
+    });
   } else {
     disableAdmin();
     setAuthIcon(false);
+    document.getElementById('loadingOverlay').style.display = 'none';
     window.location.href = "firebase login.html";
   }
 });
-function requestAdminAccess(){
-  const pass = prompt("Enter Admin Password");
-  if(pass === "ADMIN123"){
-    localStorage.setItem("isAdmin", "true");
+
+/* ==============================
+   ADMIN PIN MODAL CONTROLLER
+============================== */
+const pinModal = document.getElementById('pinModal');
+const pinModalTitle = document.getElementById('pinModalTitle');
+const pinModalSubtitle = document.getElementById('pinModalSubtitle');
+const pinInput1 = document.getElementById('pinInput1');
+const pinInput2 = document.getElementById('pinInput2');
+const pinError = document.getElementById('pinError');
+const pinForgotBtn = document.getElementById('pinForgotBtn');
+const pinSubmitBtn = document.getElementById('pinSubmitBtn');
+const pinCancelBtn = document.getElementById('pinCancelBtn');
+
+function showPinModal(mode){
+  pinFlowState = mode;
+  pinError.classList.add('hidden');
+  pinInput1.value = ''; pinInput2.value = '';
+  pinInput2.classList.add('hidden-modal');
+  pinForgotBtn.classList.add('hidden-modal');
+
+  if(mode === 'create'){
+    pinModalTitle.innerText = 'Create Your Admin PIN';
+    pinModalSubtitle.innerText = 'Set a private 4–6 digit PIN to protect admin access. Only you (or staff you trust) should know it.';
+    pinInput2.classList.remove('hidden-modal');
+  } else if(mode === 'enter'){
+    pinModalTitle.innerText = 'Admin Access';
+    pinModalSubtitle.innerText = 'Enter your admin PIN to continue.';
+    pinForgotBtn.classList.remove('hidden-modal');
+  } else if(mode === 'changePin_verify'){
+    pinModalTitle.innerText = 'Verify Current PIN';
+    pinModalSubtitle.innerText = 'Enter your current admin PIN to change it.';
+  } else if(mode === 'changePin_new' || mode === 'newPinAfterReset'){
+    pinModalTitle.innerText = 'Set New Admin PIN';
+    pinModalSubtitle.innerText = 'Choose a new 4–6 digit PIN.';
+    pinInput2.classList.remove('hidden-modal');
+  } else if(mode === 'resetCodeEntry'){
+    pinModalTitle.innerText = 'Enter Reset Code';
+    pinModalSubtitle.innerText = `We sent a 6-digit code to ${auth.currentUser?.email || 'your email'}. It expires in 10 minutes.`;
+  }
+
+  pinModal.style.display = 'flex';
+  setTimeout(()=>pinInput1.focus(), 50);
+}
+
+function closePinModal(){
+  pinModal.style.display = 'none';
+}
+
+pinCancelBtn.onclick = () => { closePinModal(); pendingAdminAction = null; };
+
+pinSubmitBtn.onclick = async () => {
+  const val1 = pinInput1.value.trim();
+  const val2 = pinInput2.value.trim();
+
+  function showErr(msg){ pinError.innerText = msg; pinError.classList.remove('hidden'); }
+
+  if(pinFlowState === 'create' || pinFlowState === 'newPinAfterReset' || pinFlowState === 'changePin_new'){
+    if(!/^\d{4,6}$/.test(val1)) return showErr('PIN must be 4–6 digits.');
+    if(val1 !== val2) return showErr('PINs do not match.');
+    adminPinHash = await hashPin(val1);
+    resetCodeHash = null; resetCodeExpiry = null;
+    await saveToFirebase();
+    closePinModal();
+    sessionStorage.setItem('isAdmin', 'true');
+    toast(pinFlowState === 'create' ? 'Admin PIN created.' : 'Admin PIN updated.');
+    if(pendingAdminAction){ const fn = pendingAdminAction; pendingAdminAction = null; fn(); }
+    else enableAdmin();
+    return;
+  }
+
+  if(pinFlowState === 'enter'){
+    if(!adminPinHash) return showErr('No PIN set yet.');
+    const hash = await hashPin(val1);
+    if(hash !== adminPinHash) return showErr('Incorrect PIN.');
+    sessionStorage.setItem('isAdmin', 'true');
+    closePinModal();
+    if(pendingAdminAction){ const fn = pendingAdminAction; pendingAdminAction = null; fn(); }
+    else enableAdmin();
+    return;
+  }
+
+  if(pinFlowState === 'changePin_verify'){
+    const hash = await hashPin(val1);
+    if(hash !== adminPinHash) return showErr('Incorrect PIN.');
+    showPinModal('changePin_new');
+    return;
+  }
+
+  if(pinFlowState === 'resetCodeEntry'){
+    if(!resetCodeHash || !resetCodeExpiry || Date.now() > resetCodeExpiry){
+      return showErr('Code expired. Please request a new one.');
+    }
+    const hash = await hashPin(val1);
+    if(hash !== resetCodeHash) return showErr('Incorrect code.');
+    showPinModal('newPinAfterReset');
+    return;
+  }
+};
+
+pinForgotBtn.onclick = async () => {
+  const email = auth.currentUser?.email;
+  if(!email) return toast('No account email on file.', true);
+  if(!confirm(`Send a PIN reset code to ${email}?`)) return;
+
+  const code = Math.floor(100000 + Math.random()*900000).toString();
+  resetCodeHash = await hashPin(code);
+  resetCodeExpiry = Date.now() + 10*60*1000;
+  await saveToFirebase();
+
+  try {
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: email,
+      reset_code: code,
+      company_name: clientCompanyName
+    });
+    toast('Reset code sent to your email.');
+    showPinModal('resetCodeEntry');
+  } catch(err){
+    console.error(err);
+    toast('Could not send email. Check EmailJS setup.', true);
+  }
+};
+
+/* ==============================
+   ADMIN OPEN / CLOSE
+============================== */
+function openAdmin(e){
+  e.preventDefault();
+  location.hash = '#admin';
+  if(sessionStorage.getItem('isAdmin') === 'true'){
     enableAdmin();
+    return;
+  }
+  if(adminPinHash){
+    showPinModal('enter');
   } else {
-    alert("Admin access denied");
+    showPinModal('create');
   }
 }
+
+function enableAdmin(){
+  document.getElementById('admin').classList.remove('hidden');
+  renderAdminProducts();
+}
+
+function disableAdmin(){
+  sessionStorage.removeItem('isAdmin');
+  document.getElementById('admin').classList.add('hidden');
+}
+
+/* ==============================
+   COMPANY NAME (admin-gated)
+============================== */
+function handleCompanyNameClick(){
+  if(sessionStorage.getItem('isAdmin') === 'true'){
+    openCompanyModal();
+  } else {
+    pendingAdminAction = openCompanyModal;
+    if(adminPinHash) showPinModal('enter'); else showPinModal('create');
+  }
+}
+
+function openCompanyModal(){
+  document.getElementById('companyNameInput').value = clientCompanyName;
+  document.getElementById('companyModal').style.display = 'flex';
+}
+document.getElementById('companyCancelBtn').onclick = () => document.getElementById('companyModal').style.display = 'none';
+document.getElementById('companySaveBtn').onclick = async () => {
+  const name = document.getElementById('companyNameInput').value.trim();
+  if(!name) return toast('Company name cannot be empty.', true);
+  clientCompanyName = name;
+  document.getElementById('companyName').innerText = clientCompanyName;
+  document.getElementById('companyModal').style.display = 'none';
+  await saveToFirebase();
+  toast('Company name updated.');
+};
+
+/* ==============================
+   HISTORY
+============================== */
 function toggleHistory(){
   const history = document.getElementById("history");
   history.classList.toggle("hidden");
@@ -238,19 +470,18 @@ function toggleHistory(){
 function renderHistory() {
   const list = document.getElementById("historyList");
   list.innerHTML = "";
-  
+
   if (soldData.length === 0) {
     list.innerHTML = "<p class='text-gray-600'>No sales yet</p>";
     return;
   }
-  
-  // Group by date
+
   const grouped = soldData.reduce((acc, s) => {
     acc[s.date] = acc[s.date] || [];
     acc[s.date].push(s);
     return acc;
   }, {});
-  
+
   for (const date in grouped) {
     list.innerHTML += `<h3 class="font-bold mt-4 mb-2 text-lg">${date}</h3>`;
     grouped[date].forEach((s, i) => {
@@ -268,73 +499,49 @@ function renderHistory() {
     });
   }
 }
-function adminGate() {
-  disableAdmin(); // prevent flicker
-  
-  setTimeout(() => {
-    if (localStorage.getItem("isAdmin") === "true") {
-      enableAdmin();
-    } else {
-      requestAdminAccess();
-    }
-  }, 150); // small delay = smooth UX
-}
-function openAdmin(e) {
-  e.preventDefault();
-  location.hash = "#admin";
-  adminGate();
-}
-function disableAdmin(){
-  isAdmin = false;
-  localStorage.removeItem("isAdmin");
-  document.getElementById("admin").classList.add("hidden");
-}
 
 function setAuthIcon(loggedIn) {
   const btn = document.getElementById("authBtn");
-  
+
   if (loggedIn) {
-    btn.innerText = "🚪"; // Logout icon
+    btn.innerText = "🚪";
     btn.title = "Logout";
-    
     btn.onclick = async () => {
       if (!confirm("Are you sure you want to logout?")) return;
-      
-      // Clear admin + local session
-      localStorage.removeItem("isAdmin");
-      
-      // Clear UI immediately
+      sessionStorage.removeItem("isAdmin");
       document.getElementById("userEmail").innerText = "";
       document.getElementById("admin").classList.add("hidden");
-      
-      cart = [];
-      productData = [];
-      soldData = [];
-      
+      cart = []; productData = []; soldData = [];
       try {
         await auth.signOut();
         window.location.replace("firebase login.html");
       } catch (err) {
-        alert("Logout failed");
+        toast("Logout failed", true);
         console.error(err);
       }
     };
-    
   } else {
-    btn.innerText = "🔑"; // Login icon
+    btn.innerText = "🔑";
     btn.title = "Login";
-    btn.onclick = () => {
-      window.location.href = "firebase login.html";
-    };
+    btn.onclick = () => { window.location.href = "firebase login.html"; };
   }
 }
+
 /* ==============================
    FIREBASE DATA FUNCTIONS
 ============================== */
 async function saveToFirebase(){
   if(!userUID) return;
   const ref = db.ref("users/" + userUID);
-  await ref.set({companyName: clientCompanyName, products: productData, cart: cart, sold: soldData});
+  await ref.set({
+    companyName: clientCompanyName,
+    products: productData,
+    cart: cart,
+    sold: soldData,
+    adminPinHash: adminPinHash,
+    resetCodeHash: resetCodeHash,
+    resetCodeExpiry: resetCodeExpiry
+  });
 }
 
 async function loadFromFirebase(){
@@ -348,12 +555,14 @@ async function loadFromFirebase(){
     productData = data.products || [];
     cart = data.cart || [];
     soldData = data.sold || [];
+    adminPinHash = data.adminPinHash || null;
+    resetCodeHash = data.resetCodeHash || null;
+    resetCodeExpiry = data.resetCodeExpiry || null;
+  } else {
+    document.getElementById('companyName').innerText = clientCompanyName;
   }
 }
-function toggleSearch() {
-    document.getElementById("searchBox").classList.toggle("hidden");
-  }
-  
+
 /* =====================================================
    RENDER & CART FUNCTIONS
 ===================================================== */
@@ -389,6 +598,7 @@ function renderProducts(search=''){
     </div>`;
   });
 }
+
 function renderAdminProducts() {
   const adminList = document.getElementById("adminProductList");
   adminList.innerHTML = "";
@@ -412,22 +622,19 @@ function renderAdminProducts() {
   });
 }
 
-// Update name
 function updateName(idx, val){
-  if(!val) return alert("Name cannot be empty");
+  if(!val) return toast("Name cannot be empty", true);
   productData[idx].name = val;
   saveToFirebase(); renderProducts(); renderAdminProducts();
 }
 
-// Update price
 function updatePrice(idx, val){
   val = parseFloat(val);
-  if(isNaN(val) || val < 0) return alert("Invalid price");
+  if(isNaN(val) || val < 0) return toast("Invalid price", true);
   productData[idx].price = val;
   saveToFirebase(); renderProducts(); renderAdminProducts();
 }
 
-// Increment/decrement qty
 function changeQty(idx, val){
   productData[idx].qty += val;
   if(productData[idx].qty < 0) productData[idx].qty = 0;
@@ -435,18 +642,13 @@ function changeQty(idx, val){
   saveToFirebase(); renderProducts();
 }
 
-// Delete product
 function deleteProduct(idx){
   if(confirm("Are you sure you want to delete this product?")){
     productData.splice(idx,1);
     saveToFirebase(); renderProducts(); renderAdminProducts();
   }
 }
-function enableAdmin(){
-  isAdmin = true;
-  document.getElementById("admin").classList.remove("hidden");
-  renderAdminProducts(); // Render admin stock table
-}
+
 function adjustQty(idx,val){
   const el=document.getElementById('qty'+idx);
   let qty=parseInt(el.innerText)+val;
@@ -456,9 +658,10 @@ function adjustQty(idx,val){
 
 function addToCart(idx){
   const qtySel = +document.getElementById('qty'+idx).innerText;
-  if(qtySel>productData[idx].qty) return alert("Not enough stock");
+  if(qtySel>productData[idx].qty) return toast("Not enough stock", true);
   cart.push({...productData[idx], qty: qtySel});
   updateCartUI();
+  toast(`${productData[idx].name} added to cart`);
 }
 
 function updateCartUI(){
@@ -483,20 +686,32 @@ function updateCartUI(){
 function removeFromCart(index){ cart.splice(index,1); updateCartUI(); saveToFirebase(); }
 
 /* =====================================================
-   ADD PRODUCT
+   ADD PRODUCT (admin-gated)
 ===================================================== */
-document.getElementById('addProductForm').onsubmit=e=>{
-  e.preventDefault();
-  if(prompt("Enter Password")!=="ADMIN123") return alert("Wrong password");
+function doAddProduct(){
   const name = document.getElementById('prodName').value;
   const price = +document.getElementById('prodPrice').value;
   const qty = +document.getElementById('prodQty').value;
-  if(!name || !price || !qty) return alert("Fill all fields");
+  if(!name || !price || !qty) return toast("Fill all fields", true);
   productData.push({name,price,qty});
-  document.getElementById('prodName').value=''; document.getElementById('prodPrice').value=''; document.getElementById('prodQty').value='1';
-  saveToFirebase(); renderProducts();
+  document.getElementById('prodName').value='';
+  document.getElementById('prodPrice').value='';
+  document.getElementById('prodQty').value='1';
+  saveToFirebase(); renderProducts(); renderAdminProducts();
+  toast(`${name} added.`);
 }
-/* =  SEARCH===*/
+
+document.getElementById('addProductForm').onsubmit = e => {
+  e.preventDefault();
+  if(sessionStorage.getItem('isAdmin') === 'true'){
+    doAddProduct();
+  } else {
+    pendingAdminAction = doAddProduct;
+    if(adminPinHash) showPinModal('enter'); else showPinModal('create');
+  }
+};
+
+/* = SEARCH = */
 searchProd.oninput=e=>renderProducts(e.target.value);
 
 /* ====== MODALS ===*/
@@ -518,43 +733,36 @@ confirmOrder.onclick = () => {
     bank = +bankPay.value || 0;
   const paid = cash + pos + bank;
   const total = cart.reduce((a, p) => a + p.price * p.qty, 0);
-  if (paid < total) return alert("Incomplete payment");
-  
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-  
+  if (paid < total) return toast("Incomplete payment", true);
+
+  const today = new Date().toISOString().split('T')[0];
+
   cart.forEach(c => {
     const idx = productData.findIndex(p => p.name === c.name);
     if (idx !== -1) productData[idx].qty -= c.qty;
-    soldData.push({
-      ...c,
-      date: today,
-      payment: { cash, pos, bank }
-    });
+    soldData.push({ ...c, date: today, payment: { cash, pos, bank } });
   });
-  
+
   cart = [];
   updateCartUI();
   renderProducts();
   checkoutModal.style.display = 'none';
   saveToFirebase();
-  alert("Sale completed");
+  toast("Sale completed ✅");
 };
+
 /* ==============================
-   PRINT AND EXPORT FUNCTIONS (GROUPED BY DATE)
+   PRINT AND EXPORT FUNCTIONS
 ============================== */
-
-// Print sales history grouped by date with grand totals and company name
 function printHistory() {
-  if (soldData.length === 0) return alert("No sales to print.");
+  if (soldData.length === 0) return toast("No sales to print.", true);
 
-  // Group soldData by date
   const grouped = soldData.reduce((acc, s) => {
     acc[s.date] = acc[s.date] || [];
     acc[s.date].push(s);
     return acc;
   }, {});
 
-  // Build HTML table for printing
   let printContent = `
     <html>
     <head>
@@ -581,13 +789,8 @@ function printHistory() {
       <table>
         <thead>
           <tr>
-            <th>#</th>
-            <th>Product</th>
-            <th>Quantity</th>
-            <th>Total (₦)</th>
-            <th>Cash (₦)</th>
-            <th>POS (₦)</th>
-            <th>Bank (₦)</th>
+            <th>#</th><th>Product</th><th>Quantity</th><th>Total (₦)</th>
+            <th>Cash (₦)</th><th>POS (₦)</th><th>Bank (₦)</th>
           </tr>
         </thead>
         <tbody>
@@ -604,27 +807,18 @@ function printHistory() {
 
       printContent += `
         <tr>
-          <td>${i + 1}</td>
-          <td>${s.name}</td>
-          <td>${s.qty}</td>
-          <td>${total}</td>
-          <td>${s.payment.cash || 0}</td>
-          <td>${s.payment.pos || 0}</td>
-          <td>${s.payment.bank || 0}</td>
+          <td>${i + 1}</td><td>${s.name}</td><td>${s.qty}</td><td>${total}</td>
+          <td>${s.payment.cash || 0}</td><td>${s.payment.pos || 0}</td><td>${s.payment.bank || 0}</td>
         </tr>
       `;
     });
 
-    // Add grand total row with highlighted style
     printContent += `
         </tbody>
         <tfoot>
           <tr style="background-color: #94a3b8; color: #fff; font-weight: bold; font-size: 1.1em;">
             <td colspan="3">Grand Total</td>
-            <td>${grandTotal}</td>
-            <td>${totalCash}</td>
-            <td>${totalPOS}</td>
-            <td>${totalBank}</td>
+            <td>${grandTotal}</td><td>${totalCash}</td><td>${totalPOS}</td><td>${totalBank}</td>
           </tr>
         </tfoot>
       </table>`;
@@ -637,19 +831,17 @@ function printHistory() {
   printWindow.document.close();
   printWindow.print();
 }
-// Export sales history to Excel (CSV) grouped by date with Grand Total per date and company name
-function exportExcel() {
-  if (soldData.length === 0) return alert("No sales to export.");
 
-  // Group soldData by date
+function exportExcel() {
+  if (soldData.length === 0) return toast("No sales to export.", true);
+
   const grouped = soldData.reduce((acc, s) => {
     acc[s.date] = acc[s.date] || [];
     acc[s.date].push(s);
     return acc;
   }, {});
 
-  // Add company name at the top
-  let csv = `${clientCompanyName}\n\n`; // This will appear at the top row
+  let csv = `${clientCompanyName}\n\n`;
   csv += 'Date,Product,Quantity,Total,Cash,POS,Bank\n';
 
   for (const date in grouped) {
@@ -665,7 +857,6 @@ function exportExcel() {
       csv += `${date},${s.name},${s.qty},${total},${s.payment.cash || 0},${s.payment.pos || 0},${s.payment.bank || 0}\n`;
     });
 
-    // Add Grand Total row for the date
     csv += `${date},Grand Total,,${grandTotal},${totalCash},${totalPOS},${totalBank}\n\n`;
   }
 
@@ -679,7 +870,8 @@ function exportExcel() {
   link.click();
   document.body.removeChild(link);
 }
-  if ('serviceWorker' in navigator) {
+
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('sw.js')
       .then(reg => console.log('Service Worker registered!', reg))
@@ -687,7 +879,6 @@ function exportExcel() {
   });
 }
 
-// Optional: Add Install Button
 let deferredPrompt;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
